@@ -1,0 +1,24 @@
+plugins {
+    id 'groovy'
+}
+
+group 'com.example'
+version '1.0-SNAPSHOT'
+
+repositories {
+    jcenter() // lub mavenCentral()
+}
+
+dependencies {
+    // Zgodnie z wymaganiami
+    compile 'org.codehaus.groovy:groovy-all:2.5.4'
+    testCompile 'org.spockframework:spock-core:1.3-groovy-2.5'
+
+    // Dodatkowa zależność potrzebna dla Spocka do działania z JUnit
+    testCompile 'junit:junit:4.12'
+}
+
+// Opcjonalnie, aby widzieć output z testów w konsoli
+test {
+    testLogging.showStandardStreams = true
+}
