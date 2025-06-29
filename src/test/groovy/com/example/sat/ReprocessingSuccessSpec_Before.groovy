@@ -6,7 +6,7 @@ import spock.lang.Subject
 // PRZYKŁAD TESTU PRZED REFAKTORYZACJĄ
 class ReprocessingSuccessSpec_Before extends Specification {
 
-    // --- POCZĄTEK POWIELONEGO KODU ---
+    // --- POCZĄTEK POWIELONEGO KODU ------------------------------------------------------
     // Wspólne definicje
     static final String SATELLITE_HOST = "sat.example.com"
     static final int SATELLITE_PORT = 9001
@@ -34,7 +34,7 @@ class ReprocessingSuccessSpec_Before extends Specification {
         connection.disconnect()
         println "Cleaned up test for success case."
     }
-    // --- KONIEC POWIELONEGO KODU ---
+    // --- KONIEC POWIELONEGO KODU ----------------------------------------------------------------------
 
     def "should successfully reprocess data when connection is active"() {
         when: "reprocessing is triggered"
