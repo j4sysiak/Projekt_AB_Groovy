@@ -1,3 +1,7 @@
 package com.example.sat
 
-class DataRepository {}
+// Interfejs dla repozytorium danych (np. baza danych)
+interface DataRepository {
+    void saveReprocessedData(String satelliteId, String data)
+    boolean wasDataSaved(String satelliteId)
+}
