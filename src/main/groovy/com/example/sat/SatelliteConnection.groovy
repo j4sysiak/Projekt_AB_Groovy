@@ -1,6 +1,5 @@
 package com.example.sat
 
-// Symuluje połączenie z zasobem zewnętrznym (np. serwerem satelitarnym)
 class SatelliteConnection {
     final String host
     final int port
@@ -11,9 +10,12 @@ class SatelliteConnection {
         this.port = port
     }
 
-    void connect() {
-        println "Connecting to satellite server at ${host}:${port}..."
-        // Symulacja operacji sieciowej
+    // Metoda connect wymaga teraz tokena
+    void connect(String authToken) {
+        if (authToken == null || !authToken.startsWith("TOKEN-")) {
+            throw new IllegalStateException("Connection refused: Invalid auth token.")
+        }
+        println "Connecting to satellite server at ${host}:${port} with a valid token..."
         Thread.sleep(50)
         this.connected = true
         println "Connected."
@@ -23,7 +25,6 @@ class SatelliteConnection {
         return connected
     }
 
-    // Symuluje pobranie danych z satelity
     String fetchData(String satelliteId) {
         if (!connected) {
             throw new IllegalStateException("Not connected to satellite server!")
