@@ -9,6 +9,7 @@ repositories {
     jcenter() // lub mavenCentral()
 }
 
+/*
 dependencies {
     // Zgodnie z wymaganiami
     compile 'org.codehaus.groovy:groovy-all:2.5.4'
@@ -17,8 +18,42 @@ dependencies {
     // Dodatkowa zależność potrzebna dla Spocka do działania z JUnit
     testCompile 'junit:junit:4.12'
 }
+*/
+
+
+// build.gradle
+dependencies {
+    implementation 'org.codehaus.groovy:groovy-all:2.5.14'
+    implementation 'org.codehaus.groovy:groovy-json:2.5.14'
+
+    testImplementation 'org.spockframework:spock-core:1.3-groovy-2.5'
+    testCompile 'junit:junit:4.12'
+}
 
 // Opcjonalnie, aby widzieć output z testów w konsoli
 test {
     testLogging.showStandardStreams = true
+}
+
+
+// Nasze działające zadanie do sprawdzania wersji
+task checkVersions {
+    group = 'Help'
+    description = 'Checks key versions and saves them to a file.'
+    doLast {
+        def spockVer = "1.3-groovy-2.5 (from dependencies section)"
+        def groovyVer = GroovySystem.version
+        def javaVer = System.getProperty("java.version")
+        def output = """
+        Spock version: $spockVer
+        Groovy version: $groovyVer
+        Java version: $javaVer
+        """.stripIndent().trim()
+        def outputFile = file("$buildDir/system-info.txt")
+        outputFile.text = output
+        println "--- System Info ---"
+        println output
+        println "-------------------"
+        println "Info saved to: ${outputFile.absolutePath}"
+    }
 }
