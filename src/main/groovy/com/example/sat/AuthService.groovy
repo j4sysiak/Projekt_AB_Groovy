@@ -1,5 +1,6 @@
 package com.example.sat
 
+
 // Symuluje serwis autoryzacji
 class AuthService {
     private final String authUrl
