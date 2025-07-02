@@ -7,35 +7,35 @@ import spock.lang.Subject
 class ReprocessingSuccessSpec_Before_Complex extends Specification {
 
     // --- POCZ?TEK MASYWNEGO BLOKU POWIELONEGO KODU ------------------------------------
-    // Wspólne definicje
+    // Wspï¿½lne definicje
     static final String TEST_SATELLITE_ID = "SAT-01"
     static final String VALID_API_KEY = "VALID-API-KEY"
 
-    // Wspólne zasoby i obiekty konfiguracyjne
+    // Wspï¿½lne zasoby i obiekty konfiguracyjne
     SystemConfig config
     AuthService authService
     SatelliteConnection connection
     DataRepository mockRepository
 
-    // Wspólny obiekt testowany
+    // Wspï¿½lny obiekt testowany
     @Subject
     ReprocessingService service
 
-    // Wspólna, rozbudowana konfiguracja
+    // Wspï¿½lna, rozbudowana konfiguracja
     def setup() {
         println "Setting up COMPLEX test for success case..."
 
-        // 1. Stwórz obiekt konfiguracji
+        // 1. Stwï¿½rz obiekt konfiguracji
         config = new SystemConfig("sat.example.com", 9001, "https://auth.example.com/token")
 
-        // 2. Stwórz serwisy na podstawie konfiguracji
-        authService = new AuthService(config.authServiceUrl)
-        connection = new SatelliteConnection(config.satelliteHost, config.satellitePort)
+        // 2. Stwï¿½rz serwisy na podstawie konfiguracji
+        authService = new AuthServiceImpl(config.authServiceUrl)
+        connection = new SatelliteConnectionImpl(config.satelliteHost, config.satellitePort)
 
-        // 3. Stwórz mocki
+        // 3. Stwï¿½rz mocki
         mockRepository = Mock(DataRepository) // Mock, bo weryfikujemy interakcj?
 
-        // 4. Stwórz g?ówny serwis ze wszystkimi zale?no?ciami
+        // 4. Stwï¿½rz g?ï¿½wny serwis ze wszystkimi zale?no?ciami
         service = new ReprocessingService(connection, mockRepository, authService, VALID_API_KEY)
     }
 

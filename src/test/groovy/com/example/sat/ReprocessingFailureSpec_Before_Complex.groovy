@@ -30,8 +30,8 @@ class ReprocessingFailureSpec_Before_Complex extends Specification {
         config = new SystemConfig("sat.example.com", 9001, "https://auth.example.com/token")
 
         // 2. Stwórz serwisy na podstawie konfiguracji
-        authService = new AuthService(config.authServiceUrl)
-        connection = new SatelliteConnection(config.satelliteHost, config.satellitePort)
+        authService = new AuthServiceImpl(config.authServiceUrl)
+        connection = new SatelliteConnectionImpl(config.satelliteHost, config.satellitePort)
 
         // 3. Stwórz mocki
         mockRepository = Mock(DataRepository)

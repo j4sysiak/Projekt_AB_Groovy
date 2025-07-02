@@ -1,12 +1,18 @@
 package com.example.sat
 
+// Wersja Ostateczna: Bez żadnych adnotacji, z prostym, jawnym konstruktorem.
 class ReprocessingService {
-    private final SatelliteConnection connection
-    private final DataRepository repository
-    private final AuthService authService
-    private final String apiKey // Klucz API jest częścią konfiguracji serwisu
+    final SatelliteConnection connection
+    final DataRepository repository
+    final AuthService authService
+    final String apiKey
 
-    ReprocessingService(SatelliteConnection connection, DataRepository repository, AuthService authService, String apiKey) {
+    // Prosty, "głupi", niezawodny konstruktor pozycyjny.
+    ReprocessingService(
+            SatelliteConnection connection,
+            DataRepository repository,
+            AuthService authService,
+            String apiKey) {
         this.connection = connection
         this.repository = repository
         this.authService = authService
@@ -14,18 +20,14 @@ class ReprocessingService {
     }
 
     boolean reprocessDataForSatellite(String satelliteId) {
+        boolean connectedByThisService = false
         try {
-            // Krok 1: Uzyskaj token
             String token = authService.getAuthToken(apiKey)
-
-            // Krok 2: Połącz się używając tokena
             connection.connect(token)
+            connectedByThisService = true
 
-            // Krok 3: Pobierz dane
             String rawData = connection.fetchData(satelliteId)
             String processedData = "PROCESSED: [${rawData}]"
-
-            // Krok 4: Zapisz dane
             repository.saveReprocessedData(satelliteId, processedData)
 
             return true
@@ -33,8 +35,7 @@ class ReprocessingService {
             println "Error during reprocessing: ${e.message}"
             return false
         } finally {
-            // Krok 5: Zawsze się rozłącz, jeśli połączenie było aktywne
-            if (connection.isConnected()) {
+            if (connectedByThisService) {
                 connection.disconnect()
             }
         }

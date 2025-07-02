@@ -5,73 +5,21 @@ plugins {
 group 'com.example'
 version '1.0-SNAPSHOT'
 
+// --- TUTAJ JEST KLUCZOWA ZMIANA ---
 repositories {
-    jcenter() // lub mavenCentral()
+    // jcenter() // <-- ZAKOMENTUJ LUB USUŃ TĘ LINIĘ
+    mavenCentral() // <-- DODAJ TĘ LINIĘ. To jest obecny standard.
 }
+// ------------------------------------
 
-/*
 dependencies {
-    // Zgodnie z wymaganiami
     compile 'org.codehaus.groovy:groovy-all:2.5.4'
     testCompile 'org.spockframework:spock-core:1.3-groovy-2.5'
-
-    // Dodatkowa zależność potrzebna dla Spocka do działania z JUnit
     testCompile 'junit:junit:4.12'
-
-    // --- DODAJ TĘ LINIĘ ---
-    // Biblioteka wymagana przez Spocka do mockowania konkretnych klas (a nie tylko interfejsów)
     testCompile 'cglib:cglib-nodep:3.2.12'
-
-    // --- DODAJ TĘ LINIĘ ---
-    // Biblioteka do tworzenia instancji obiektów bez wywoływania konstruktorów
-    // Rozwiązuje problem z mockowaniem klas, które nie mają konstruktora bezargumentowego.
-    testCompile 'org.objenesis:objenesis:2.6'
-}*/
-
-
-
-// build.gradle
-dependencies {
-    implementation 'org.codehaus.groovy:groovy-all:2.5.14'
-    implementation 'org.codehaus.groovy:groovy-json:2.5.14'
-
-    testImplementation 'org.spockframework:spock-core:1.3-groovy-2.5'
-    testCompile 'junit:junit:4.12'
-
-    // --- DODAJ TĘ LINIĘ ---
-    // Biblioteka wymagana przez Spocka do mockowania konkretnych klas (a nie tylko interfejsów)
-    testCompile 'cglib:cglib-nodep:3.2.12'
-
-    // --- DODAJ TĘ LINIĘ ---
-    // Biblioteka do tworzenia instancji obiektów bez wywoływania konstruktorów
-    // Rozwiązuje problem z mockowaniem klas, które nie mają konstruktora bezargumentowego.
     testCompile 'org.objenesis:objenesis:2.6'
 }
 
-// Opcjonalnie, aby widzieć output z testów w konsoli
 test {
     testLogging.showStandardStreams = true
-}
-
-
-// Nasze działające zadanie do sprawdzania wersji
-task checkVersions {
-    group = 'Help'
-    description = 'Checks key versions and saves them to a file.'
-    doLast {
-        def spockVer = "1.3-groovy-2.5 (from dependencies section)"
-        def groovyVer = GroovySystem.version
-        def javaVer = System.getProperty("java.version")
-        def output = """
-        Spock version: $spockVer
-        Groovy version: $groovyVer
-        Java version: $javaVer
-        """.stripIndent().trim()
-        def outputFile = file("$buildDir/system-info.txt")
-        outputFile.text = output
-        println "--- System Info ---"
-        println output
-        println "-------------------"
-        println "Info saved to: ${outputFile.absolutePath}"
-    }
 }
