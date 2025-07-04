@@ -30,6 +30,7 @@ class ReprocessingService {
             String processedData = "PROCESSED: [${rawData}]"
             repository.saveReprocessedData(satelliteId, processedData)
 
+
             return true
         } catch (Exception e) {
             println "Error during reprocessing: ${e.message}"
