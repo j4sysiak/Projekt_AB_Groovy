@@ -24,13 +24,13 @@ class AlphaSystemSuccessSpec extends SomeBaseTest {
         result == true
 
         and: "all ALPHA system modules were called correctly"
-       // 1 * telemetryModule.sendEvent("REPROCESSING_STARTED", _)
-       // 1 * authService.getAuthToken(alphaApiKey)
-       // 1 * connection.connect(alphaAuthToken)
-        //1 * commandModule.sendCommand("SET_MODE:REPROCESS")
+        1 * telemetryModule.sendEvent("REPROCESSING_STARTED", _)
+       1 * authService.getAuthToken(alphaApiKey)
+       1 * connection.connect(alphaAuthToken)
+       1 * commandModule.sendCommand("SET_MODE:REPROCESS")
         1 * repository.saveReprocessedData("ALPHA-SAT-123", "PROCESSED: [Raw ALPHA Data]")
-       // 1 * telemetryModule.sendEvent("REPROCESSING_SUCCESS", _)
-      //  1 * connection.disconnect()
+        1 * telemetryModule.sendEvent("REPROCESSING_SUCCESS", _)
+     1 * connection.disconnect()
     }
 
 }
