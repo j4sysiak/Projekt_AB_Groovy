@@ -1,5 +1,7 @@
 package com.example.sat
 
+import com.example.sat.fakes.InMemoryDbRepository
+import com.example.sat.fakes.InMemoryFileRepository
 import spock.lang.Specification
 
 // Wersja Ostateczna: Używamy Spy na obu niestabilnych zależnościach.
@@ -57,8 +59,17 @@ abstract class SomeBaseTest extends Specification {
         telemetryModule = Spy(TelemetryModuleImpl, constructorArgs: [config.telemetryEndpoint])
         commandModule = Spy(CommandModuleImpl, constructorArgs: [config.commandHost, config.commandPort])
 
-        // DataRepository jest interfejsem, więc Mock jest dla niego idealny i stabilny.
-        repository = Mock(DataRepository)
+
+        // === KLUCZOWA, OSTATECZNA ZMIANA ===
+        // Zamiast tworzyć zwykły obiekt, owijamy go w Spy().
+        // To pozwala jednocześnie sprawdzać stan I weryfikować interakcje.
+        if (systemName == "ALPHA") {
+            repository = Spy(InMemoryFileRepository)
+        } else if (systemName == "BETA") {
+            repository = Spy(InMemoryDbRepository)
+        } else {
+            repository = Mock(DataRepository)
+        }
 
         // 3. Stwórz główny obiekt testowany z tymi zależnościami i konfiguracją.
         service = new ReprocessingService(connection, repository, authService, telemetryModule, commandModule, config)
