@@ -5,28 +5,62 @@ import spock.lang.Specification
 // Wersja Ostateczna: Używamy Spy na obu niestabilnych zależnościach.
 abstract class SomeBaseTest extends Specification {
 
-    // Będą one dostępne dla wszystkich testów dziedziczących.
-    protected static final String DEFAULT_SATELLITE_ID = "SAT-ALPHA-01"
-    protected static final String VALID_API_KEY = "VALID-API-KEY"
-    protected static final String INVALID_API_KEY = "INVALID-KEY"
-    protected static final String VALID_AUTH_TOKEN = "TOKEN-FOR-${VALID_API_KEY}"
+    // === CENTRALNY REJESTR KONFIGURACJI ===
+    protected static final Map<String, SystemConfig> SYSTEM_CONFIGS = [
+            // Używamy prostego, POZYCYJNEGO konstruktora. To jest kluczowa zmiana.
+            // Argumenty muszą być w tej samej kolejności co pola w klasie SystemConfig.
+            "ALPHA": new SystemConfig(
+                    "sat.alpha-partner.com",    // satelliteHost
+                    9001,                       // satellitePort
+                    "https://auth.alpha.net/token",// authServiceUrl
+                    "udp://metrics.alpha.com:5555", // telemetryEndpoint
+                    "cmd.alpha-partner.com",    // commandHost
+                    2201,                       // commandPort
+                    "ALPHA-VALID-API-KEY"       // apiKey
+            ),
+            "BETA": new SystemConfig(
+                    "beta-sat.internal.net",    // satelliteHost
+                    19001,                      // satellitePort
+                    "http://10.0.2.15/beta_auth",// authServiceUrl
+                    "tcp://10.0.2.16:6000",     // telemetryEndpoint
+                    "10.0.2.17",                // commandHost
+                    2202,                       // commandPort
+                    "BETA-SECRET-KEY-99"        // apiKey
+            )
+    ]
 
+    // === Pola na nasze zależności testowe ===
+    // Będą one wypełniane przez metodę setupSystem()
     protected AuthService authService
     protected SatelliteConnection connection
     protected DataRepository repository
+    protected TelemetryModule telemetryModule
+    protected CommandModule commandModule
 
     protected ReprocessingService service
 
-    def setup() {
-        println "--- SomeBaseTest.setup() ---"
+    // === METODA-FABRYKA: serce naszego rozwiązania ===
+    // Ta metoda buduje kompletne, gotowe do testów środowisko dla wybranego systemu.
+    protected void setupSystem(String systemName) {
+        println "--- Setting up test environment for System: ${systemName} ---"
 
-        // Sprawdzony wzorzec dla AuthService
-        authService = Spy(AuthServiceImpl, constructorArgs: ["http://dummy.auth.url"])
+        // 1. Pobierz konfigurację dla danego systemu
+        def config = SYSTEM_CONFIGS[systemName]
+        if (config == null) {
+            throw new IllegalArgumentException("No configuration found for system: ${systemName}")
+        }
 
-        // Stosujemy ten sam wzorzec dla SatelliteConnection
-        connection = Spy(SatelliteConnectionImpl, constructorArgs: ["dummy.host", 1234])
+        // 2. Stwórz zależności testowe (Spy/Mock) na podstawie tej konfiguracji.
+        // Używamy Spy, bo ten wzorzec okazał się dla nas stabilny.
+        authService = Spy(AuthServiceImpl, constructorArgs: [config.authServiceUrl])
+        connection = Spy(SatelliteConnectionImpl, constructorArgs: [config.satelliteHost, config.satellitePort])
+        telemetryModule = Spy(TelemetryModuleImpl, constructorArgs: [config.telemetryEndpoint])
+        commandModule = Spy(CommandModuleImpl, constructorArgs: [config.commandHost, config.commandPort])
 
         // DataRepository jest interfejsem, więc Mock jest dla niego idealny i stabilny.
         repository = Mock(DataRepository)
+
+        // 3. Stwórz główny obiekt testowany z tymi zależnościami i konfiguracją.
+        service = new ReprocessingService(connection, repository, authService, telemetryModule, commandModule, config)
     }
 }

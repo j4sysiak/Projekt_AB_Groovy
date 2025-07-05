@@ -1,24 +1,37 @@
 package com.example.sat
 
-class ReprocessingFailureSpec extends SomeBaseTest {
+class AlphaSystemFailureSpec extends SomeBaseTest {
 
-    def "should fail gracefully when an invalid API key is used"() {
-        given: "the authentication service will reject invalid keys"
-        authService.getAuthToken(INVALID_API_KEY) >> { throw new IllegalArgumentException("Invalid API Key") }
+    // Prosimy klasę bazową o przygotowanie środowiska "ALPHA"
+    def setup() {
+        setupSystem("ALPHA")
+    }
 
-        // Tworzymy serwis używając prostego, pozycyjnego konstruktora
-        service = new ReprocessingService(connection, repository, authService, INVALID_API_KEY)
+    def "should fail gracefully on ALPHA system when satellite connection fails"() {
+        given: "the ALPHA satellite connection will throw an exception"
+        def alphaApiKey = SYSTEM_CONFIGS["ALPHA"].apiKey
+        def alphaAuthToken = "TOKEN-FOR-${alphaApiKey}"
 
-        when: "reprocessing is attempted with the service configured with a bad key"
-        boolean result = service.reprocessDataForSatellite(DEFAULT_SATELLITE_ID)
+        // Krok 1: Autoryzacja przechodzi pomyślnie
+        authService.getAuthToken(alphaApiKey) >> alphaAuthToken
 
-        then: "the operation should fail"
+        // Krok 2: Symulujemy błąd na etapie connect() dla systemu ALPHA
+        connection.connect(alphaAuthToken) >> { throw new java.net.ConnectException("Connection timed out to sat.alpha-partner.com") }
+
+        when: "reprocessing is triggered"
+        boolean result = service.reprocessDataForSatellite("ALPHA-SAT-456")
+
+        then: "the operation fails"
         result == false
 
-        and: "the process should stop at authentication"
-        1 * authService.getAuthToken(INVALID_API_KEY)
-        0 * connection.connect(_)
-        0 * connection.fetchData(_)
-        0 * repository.saveReprocessedData(_, _)
+        and: "a failure event is sent to ALPHA telemetry"
+        1 * telemetryModule.sendEvent("REPROCESSING_FAILURE", [satelliteId: "ALPHA-SAT-456", error: "Connection timed out to sat.alpha-partner.com"])
+
+        and: "the process was aborted before sending commands or saving data"
+        0 * commandModule.sendCommand(_)
+        0 * repository.saveReprocessedData(_,_)
+
+        and: "the connection was never established, so disconnect is not called"
+        0 * connection.disconnect()
     }
 }
