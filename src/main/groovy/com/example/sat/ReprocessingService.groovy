@@ -5,6 +5,9 @@ class ReprocessingService {
     final SatelliteConnection connection
     final DataRepository repository
     final AuthService authService
+    // Serwis ma teraz znacznie więcej zależności (dodalismy doduly : telemetrii i commad)
+    TelemetryModule telemetryClient
+    CommandModule commandClient
     final String apiKey
 
     // Prosty, "głupi", niezawodny konstruktor pozycyjny.
