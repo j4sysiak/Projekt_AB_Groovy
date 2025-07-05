@@ -1,6 +1,6 @@
 package com.example.sat
 
-class AlphaSystemFailureSpec extends SomeBaseTest {
+class ReprocessingFailureSpec extends SomeBaseTest {
 
     // Prosimy klasę bazową o przygotowanie środowiska "ALPHA"
     def setup() {
