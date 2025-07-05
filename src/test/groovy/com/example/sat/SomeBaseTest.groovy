@@ -1,5 +1,7 @@
 package com.example.sat
 
+import com.example.sat.fakes.InMemoryDbRepository
+import com.example.sat.fakes.InMemoryFileRepository
 import spock.lang.Specification
 
 // Wersja Ostateczna: Używamy Spy na obu niestabilnych zależnościach.
@@ -58,16 +60,14 @@ abstract class SomeBaseTest extends Specification {
         commandModule = Spy(CommandModuleImpl, constructorArgs: [config.commandHost, config.commandPort])
 
 
-        // === KLUCZOWA ADAPTACJA ===
-        // Zamiast prostego Mock, tworzymy konkretną, testową implementację
-        // repozytorium w zależności od testowanego systemu.
+        // === KLUCZOWA, OSTATECZNA ZMIANA ===
+        // Zamiast tworzyć zwykły obiekt, owijamy go w Spy().
+        // To pozwala jednocześnie sprawdzać stan I weryfikować interakcje.
         if (systemName == "ALPHA") {
-            repository = new com.example.sat.fakes.InMemoryFileRepository()
+            repository = Spy(InMemoryFileRepository)
         } else if (systemName == "BETA") {
-            repository = new com.example.sat.fakes.InMemoryDbRepository()
+            repository = Spy(InMemoryDbRepository)
         } else {
-            // Domyślnie używamy generycznego mocka, jeśli nie zdefiniowano inaczej
-            // DataRepository jest interfejsem, więc Mock jest dla niego idealny i stabilny.
             repository = Mock(DataRepository)
         }
 
