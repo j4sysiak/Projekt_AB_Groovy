@@ -16,8 +16,7 @@ Mam miec Projekt_AB w środowisku:
   Potem mam zrobic jak poniżej w treści mojego zadania projektowego na rekrutacje
 
 
-"
-W wielu testach łańcucha funkcji wykorzystywane serwery, zasoby, zmienne itd. są identyczne.   
+"W wielu testach łańcucha funkcji wykorzystywane serwery, zasoby, zmienne itd. są identyczne.   
 Obecnie każdy test zawiera własną kopię tych wspólnych elementów.
 Dla łańcucha funkcji Projektu_AB (reprocesowanie) należy przeanalizować, a następnie wdrożyć, w jakim zakresie wspólne elementy
 można przenieść do konkretnej klasy bazowej o nazwie SomeBaseTest.
