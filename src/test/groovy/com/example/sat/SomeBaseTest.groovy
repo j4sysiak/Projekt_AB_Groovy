@@ -57,8 +57,19 @@ abstract class SomeBaseTest extends Specification {
         telemetryModule = Spy(TelemetryModuleImpl, constructorArgs: [config.telemetryEndpoint])
         commandModule = Spy(CommandModuleImpl, constructorArgs: [config.commandHost, config.commandPort])
 
-        // DataRepository jest interfejsem, więc Mock jest dla niego idealny i stabilny.
-        repository = Mock(DataRepository)
+
+        // === KLUCZOWA ADAPTACJA ===
+        // Zamiast prostego Mock, tworzymy konkretną, testową implementację
+        // repozytorium w zależności od testowanego systemu.
+        if (systemName == "ALPHA") {
+            repository = new com.example.sat.fakes.InMemoryFileRepository()
+        } else if (systemName == "BETA") {
+            repository = new com.example.sat.fakes.InMemoryDbRepository()
+        } else {
+            // Domyślnie używamy generycznego mocka, jeśli nie zdefiniowano inaczej
+            // DataRepository jest interfejsem, więc Mock jest dla niego idealny i stabilny.
+            repository = Mock(DataRepository)
+        }
 
         // 3. Stwórz główny obiekt testowany z tymi zależnościami i konfiguracją.
         service = new ReprocessingService(connection, repository, authService, telemetryModule, commandModule, config)
