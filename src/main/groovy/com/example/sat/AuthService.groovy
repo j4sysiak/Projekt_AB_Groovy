@@ -1,6 +1,6 @@
 package com.example.sat
 
 // Zmieniamy AuthService na interfejs. To jest kluczowa zmiana.
-interface AuthService {
+interface AuthService  {
     String getAuthToken(String apiKey)
 }
