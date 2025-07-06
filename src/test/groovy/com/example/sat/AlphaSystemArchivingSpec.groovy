@@ -5,30 +5,29 @@ import com.example.sat.fakes.InMemoryFileRepository
 class AlphaSystemArchivingSpec extends SomeBaseTest {
 
     def setup() {
+        // Tworzymy prawdziwy obiekt repozytorium i ustawiamy go WŁASNORĘCZNIE
+        // zanim zawołamy metodę z klasy bazowej.
+        repository = new InMemoryFileRepository()
+
+        // Teraz wołamy setupSystem. On zobaczy, że 'repository' już jest ustawione
+        // i nie stworzy dla niego mocka.
         setupSystem("ALPHA")
     }
 
-    def "should correctly archive old data using file-based repository for ALPHA system"() {
-        given: "the ALPHA repository already contains old data for a satellite"
-        def satelliteId = "ALPHA-SAT-123"
-        def oldData = "OLD ALPHA DATA"
-        // Musimy rzutować, aby dostać się do wewnętrznego stanu naszej testowej implementacji
-        // prykład użycia: Map<String, String>  fileSystem = ["ALPHA-SAT-123" : "OLD ALPHA DATA"]
-        (repository as InMemoryFileRepository).fileSystem[satelliteId] = oldData
+    def "should correctly archive old data using file-based repository"() {
+        given: "some data is already saved in the repository"
+        repository.saveReprocessedData("SAT-1", "SHORT_DATA") // to zostanie zarchiwizowane
+        repository.saveReprocessedData("SAT-2", "VERY_LONG_DATA_THAT_WILL_BE_KEPT")
 
-        and: "the rest of the dependencies are configured for success"
-        def alphaApiKey = SYSTEM_CONFIGS["ALPHA"].apiKey
-        authService.getAuthToken(alphaApiKey) >> "TOKEN-FOR-${alphaApiKey}"
-        connection.fetchData(satelliteId) >> "NEW RAW ALPHA DATA"
+        when: "the archiving process is triggered"
+        // Rzutujemy, aby dostać się do metody specyficznej dla tej implementacji.
+        // To jest teraz bezpieczne, bo wiemy, że to jest prawdziwy obiekt.
+        ((InMemoryFileRepository)repository).archiveOldData(20)
 
-        when: "reprocessing is triggered"
-        service.reprocessDataForSatellite(satelliteId)
-
-        then: "the old data is now in the file archive"
-        def fileRepo = (repository as InMemoryFileRepository)
-        fileRepo.archive[satelliteId] == oldData
-
-        and: "the new data is in the main file system"
-        fileRepo.fileSystem[satelliteId] == "PROCESSED: [NEW RAW ALPHA DATA]"
+        then: "short data is moved to archive and long data is kept"
+        !repository.wasDataSaved("SAT-1")
+        repository.wasDataSaved("SAT-2")
+        ((InMemoryFileRepository)repository).archivedData.size() == 1
+        ((InMemoryFileRepository)repository).archivedData[0] == "SHORT_DATA"
     }
 }
