@@ -3,6 +3,8 @@ package com.example.sat
 import spock.lang.Specification
 
 // Klasa-kontener na wszystkie zależności naszego środowiska testowego
+// to jest po prostu nasze środowisko - env
+
 class TestEnvironment {
     // Zależności niższego poziomu
     AuthService authService
