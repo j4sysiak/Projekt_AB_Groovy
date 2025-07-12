@@ -8,17 +8,18 @@ class SystemConfig {
     final String telemetryEndpoint
     final String commandHost
     final int commandPort
-    final String apiKey
+    // ZMIANA: Usunęliśmy jawny klucz API
+    final String apiKeySecretName // Dodajemy identyfikator sekretu
+    //final String apiKey
 
-    // Prosty, jawny, pozycyjny konstruktor w stylu Javy. Jest niezawodny.
-    SystemConfig(String satelliteHost, int satellitePort, String authServiceUrl,
-                 String telemetryEndpoint, String commandHost, int commandPort, String apiKey) {
+    // Aktualizujemy konstruktor
+    SystemConfig(String satelliteHost, int satellitePort, String authServiceUrl, String telemetryEndpoint, String commandHost, int commandPort, String apiKeySecretName) {
         this.satelliteHost = satelliteHost
         this.satellitePort = satellitePort
         this.authServiceUrl = authServiceUrl
         this.telemetryEndpoint = telemetryEndpoint
         this.commandHost = commandHost
         this.commandPort = commandPort
-        this.apiKey = apiKey
+        this.apiKeySecretName = apiKeySecretName
     }
 }
