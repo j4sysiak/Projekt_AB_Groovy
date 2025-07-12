@@ -14,21 +14,36 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
     // Flaga tylko do celów testowych, aby wymusić błąd
        public boolean forceConnectionFailure = false
 
-    // Usunęliśmy AuthService i apiKey z konstruktora
+    // NOWA ZALEŻNOŚĆ
+    final InputValidator validator
+
+
+    // Aktualizujemy konstruktor
     ReprocessingServiceImpl(
             SatelliteConnection connection, DataRepository repository,
             TokenCache tokenCache, TelemetryModule telemetryModule,
-            CommandModule commandModule) {
+            CommandModule commandModule, InputValidator validator) {
         this.connection = connection
         this.repository = repository
         this.tokenCache = tokenCache
         this.telemetryModule = telemetryModule
         this.commandModule = commandModule
+        this.validator = validator
     }
 
     // Implementujemy metodę z interfejsu
     @Override
     boolean reprocessDataForSatellite(String satelliteId) {
+
+        // ZMIANA: Walidacja jako PIERWSZY KROK
+        try {
+            validator.validateSatelliteId(satelliteId)
+        } catch (ValidationException e) {
+            println "Error during reprocessing: ${e.message}"
+            // Nie wysyłamy nawet telemetrii, bo to błąd "śmieciowych" danych wejściowych
+            return false // Zawieś działanie natychmiast
+        }
+
         telemetryModule.sendEvent("REPROCESSING_STARTED", [satelliteId: satelliteId])
         boolean connectedByThisService = false
         try {
