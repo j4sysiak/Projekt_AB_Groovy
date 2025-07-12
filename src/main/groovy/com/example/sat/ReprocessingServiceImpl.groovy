@@ -3,24 +3,27 @@ package com.example.sat
 class ReprocessingServiceImpl implements ISingleReprocessor {
     final SatelliteConnection connection
     final DataRepository repository
-    final AuthService authService
     final TelemetryModule telemetryModule
     final CommandModule commandModule
-    private final String apiKey
+
+    // ZMIANA: Zależność od TokenCache
+    final TokenCache tokenCache
+    // private final String apiKey
+    // final AuthService authService
 
     // Flaga tylko do celów testowych, aby wymusić błąd
-    public boolean forceConnectionFailure = false
+       public boolean forceConnectionFailure = false
 
+    // Usunęliśmy AuthService i apiKey z konstruktora
     ReprocessingServiceImpl(
             SatelliteConnection connection, DataRepository repository,
-            AuthService authService, TelemetryModule telemetryModule,
-            CommandModule commandModule, SystemConfig config) {
+            TokenCache tokenCache, TelemetryModule telemetryModule,
+            CommandModule commandModule) {
         this.connection = connection
         this.repository = repository
-        this.authService = authService
+        this.tokenCache = tokenCache
         this.telemetryModule = telemetryModule
         this.commandModule = commandModule
-        this.apiKey = config.apiKey
     }
 
     // Implementujemy metodę z interfejsu
@@ -29,7 +32,9 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
         telemetryModule.sendEvent("REPROCESSING_STARTED", [satelliteId: satelliteId])
         boolean connectedByThisService = false
         try {
-            String token = authService.getAuthToken(apiKey)
+            // ZMIANA: Pobieramy token z cache'u, a nie bezpośrednio z AuthService
+            String token = tokenCache.getToken()
+            //String token = authService.getAuthToken(apiKey)
 
             // KLUCZOWA ZMIANA: Ręcznie symulujemy błąd, jeśli flaga jest ustawiona
             if (forceConnectionFailure) {
