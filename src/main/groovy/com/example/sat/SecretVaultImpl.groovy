@@ -9,7 +9,7 @@ class SecretVaultImpl implements SecretVault {
     private final Map<String, String> secrets = [
             "alpha-system/api-key": "ALPHA-VALID-API-KEY",
             "beta-system/api-key": "BETA-SECRET-KEY-99",
-            "secret-name": "ANY-API-KEY" // <-- Dodaj tę linię
+            "secret-name": "ALPHA-VALID-API-KEY" // <-- Dodaj tę linię
     ]
 
     SecretVaultImpl(String vaultAddress) {
