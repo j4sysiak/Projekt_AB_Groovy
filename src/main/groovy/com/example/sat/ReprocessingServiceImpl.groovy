@@ -59,9 +59,11 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
             connection.connect(token)
             connectedByThisService = true
 
-            // ... reszta logiki bez zmian ...
-            commandModule.sendCommand("SET_MODE:REPROCESS")
+            // Wysyłamy sekwencję bardziej realistycznych komend
+            commandModule.sendCommand("SET_CAMERA_MODE:ACTIVE_IMAGING")
             String rawData = connection.fetchData(satelliteId)
+            commandModule.sendCommand("SET_CAMERA_MODE:STANDBY") // Wyłączamy aparat po zrobieniu zdjęcia
+
             String processedData = "PROCESSED: [${rawData}]"
             repository.saveReprocessedData(satelliteId, processedData)
             telemetryModule.sendEvent("REPROCESSING_SUCCESS", [satelliteId: satelliteId, dataSize: processedData.length()])
