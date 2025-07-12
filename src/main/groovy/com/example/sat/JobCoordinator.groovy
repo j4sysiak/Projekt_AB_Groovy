@@ -1,42 +1,34 @@
 package com.example.sat
 
-import groovy.transform.Canonical
-
-@Canonical
+// Bez żadnych adnotacji. Czysta, prosta klasa.
 class JobCoordinator {
-    // Zależności, których potrzebuje koordynator
-    JobRepository jobRepository
-    BatchReprocessingService batchReprocessor // Używa serwisu z logiką 'retry'
+    final JobRepository jobRepository
+    final ProcessingQueue processingQueue
 
-    // Główna metoda, która uruchamia cały proces
-    void processAllPendingJobs() {
-        println "COORDINATOR: Starting to process all pending jobs."
+    // Prosty, jawny, niezawodny konstruktor.
+    JobCoordinator(JobRepository jobRepository, ProcessingQueue processingQueue) {
+        this.jobRepository = jobRepository
+        this.processingQueue = processingQueue
+    }
 
-        // 1. Pobierz listę zadań do zrobienia
+    void scheduleAllPendingJobs() {
+        println "COORDINATOR: Starting to schedule all pending jobs."
+
         def pendingJobIds = jobRepository.findPendingJobs()
 
+        // Teraz, gdy stub zadziała, pendingJobIds nie będzie nullem.
         if (pendingJobIds.isEmpty()) {
-            println "COORDINATOR: No pending jobs to process."
+            println "COORDINATOR: No pending jobs to schedule."
             return
         }
 
-        println "COORDINATOR: Found ${pendingJobIds.size()} jobs. Processing one by one."
+        println "COORDINATOR: Found ${pendingJobIds.size()} jobs. Publishing to queue."
 
-        // 2. Dla każdego zadania...
         pendingJobIds.each { satelliteId ->
-            // ...uruchom proces z ponawianiem prób...
-            boolean success = batchReprocessor.processWithRetries(satelliteId)
-
-            // 3. ...i zaktualizuj status w repozytorium.
-            if (success) {
-                jobRepository.markJobAsSuccess(satelliteId)
-                println "COORDINATOR: Job for ${satelliteId} marked as SUCCESS."
-            } else {
-                jobRepository.markJobAsFailed(satelliteId)
-                println "COORDINATOR: Job for ${satelliteId} marked as FAILED."
-            }
+            processingQueue.publishJob(satelliteId)
+            println "COORDINATOR: Job for ${satelliteId} has been published to the queue."
         }
 
-        println "COORDINATOR: Finished processing all jobs."
+        println "COORDINATOR: Finished publishing all jobs."
     }
 }
