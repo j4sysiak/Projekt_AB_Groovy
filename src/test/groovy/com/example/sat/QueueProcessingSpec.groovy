@@ -1,25 +1,24 @@
 package com.example.sat
 
+import com.example.sat.fakes.FakeBatchReprocessor
+import com.example.sat.fakes.ManualMockJobRepository
+import com.example.sat.fakes.ManualMockProcessingQueue
+
 class QueueProcessingSpec extends SomeBaseTest {
 
     def "should correctly schedule, consume and process a job via the queue"() {
-        given: "a full setup with a job waiting in the repository"
+        given: "a full setup with our reliable, manual mocks"
         def satelliteId = "SAT-QUEUE-01"
 
-        // 1. Tworzymy wszystkie potrzebne mocki
-        def jobRepository = Mock(JobRepository)
-        def processingQueue = Mock(ProcessingQueue)
-        def batchReprocessor = Mock(BatchReprocessingService)
+        // 1. Tworzymy instancje naszych RĘCZNYCH mocków
+        def jobRepository = new ManualMockJobRepository()
+        def processingQueue = new ManualMockProcessingQueue()
+        def batchReprocessor = new FakeBatchReprocessor()
 
-        // 2. Konfigurujemy zachowanie mocków dla całego przepływu
-        // Koordynator znajdzie jedno zadanie
-        jobRepository.findPendingJobs() >> [satelliteId]
-
-        // Listener pobierze to zadanie z kolejki
-        processingQueue.consumeJob() >> satelliteId
-
-        // Serwis przetwarzający zakończy zadanie sukcesem
-        batchReprocessor.processWithRetries(satelliteId) >> true
+        // 2. Konfigurujemy ich stan
+        jobRepository.jobsToFind = [satelliteId]
+        processingQueue.jobsToConsume = [satelliteId]
+        batchReprocessor.results[satelliteId] = true
 
         // 3. Tworzymy nasze obiekty testowane
         def coordinator = new JobCoordinator(jobRepository, processingQueue)
@@ -30,12 +29,12 @@ class QueueProcessingSpec extends SomeBaseTest {
         listener.processNextMessage()
 
         then: "the job flows through the system and its status is updated"
-        // Sprawdzamy, czy kluczowe interakcje miały miejsce we właściwej kolejności
-        1 * jobRepository.findPendingJobs()
-        1 * processingQueue.publishJob(satelliteId)
-        1 * processingQueue.consumeJob()
-        1 * batchReprocessor.processWithRetries(satelliteId)
-        1 * jobRepository.markJobAsSuccess(satelliteId)
-        0 * jobRepository.markJobAsFailed(_) // Upewniamy się, że nie został oznaczony jako błąd
+        // Weryfikujemy stan naszych ręcznych mocków
+        jobRepository.findInvocations == 1
+        processingQueue.publishedJobs == [satelliteId]
+        processingQueue.consumeInvocations == 1
+        batchReprocessor.invocations[satelliteId] == 1
+        jobRepository.successJobs == [satelliteId]
+        jobRepository.failedJobs.isEmpty()
     }
 }
