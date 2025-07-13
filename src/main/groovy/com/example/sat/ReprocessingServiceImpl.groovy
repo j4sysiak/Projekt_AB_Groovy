@@ -1,5 +1,8 @@
 package com.example.sat
 
+import java.util.regex.Matcher
+import java.util.regex.Pattern
+
 class ReprocessingServiceImpl implements ISingleReprocessor {
     final SatelliteConnection connection
     final DataRepository repository
@@ -17,7 +20,6 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
     // NOWA ZALEŻNOŚĆ
     final InputValidator validator
 
-
     // Aktualizujemy konstruktor
     ReprocessingServiceImpl(
             SatelliteConnection connection, DataRepository repository,
@@ -29,6 +31,38 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
         this.telemetryModule = telemetryModule
         this.commandModule = commandModule
         this.validator = validator
+    }
+
+    // NOWA, prywatna metoda do sprawdzania stanu
+    private void performPreflightChecks(CommandModule cmd) {
+        println "SERVICE: Performing pre-flight checks..."
+
+        // --- Sprawdzanie Zasilania ---
+        def powerStatus = cmd.sendCommand("CHECK_POWER_STATUS")
+        if (powerStatus.contains("NACK")) {
+            throw new IllegalStateException("Pre-flight check failed: Power system NACK. Status: ${powerStatus}")
+        }
+
+        // Używamy wyrażenia regularnego, aby bezpiecznie wyciągnąć liczbę
+        Pattern pattern = Pattern.compile("(\\d+\\.?\\d*)%")
+        Matcher matcher = pattern.matcher(powerStatus)
+
+        if (matcher.find()) {
+            double batteryLevel = matcher.group(1).toDouble()
+            if (batteryLevel < 20.0) {
+                throw new IllegalStateException("Pre-flight check failed: Insufficient power. Battery at ${batteryLevel}%.")
+            }
+        } else {
+            throw new IllegalStateException("Pre-flight check failed: Could not parse power status response: ${powerStatus}")
+        }
+
+        // --- Sprawdzanie Stanu Podzespołów ---
+        String healthStatus = cmd.sendCommand("CHECK_SYSTEM_HEALTH")
+        if (healthStatus.contains("FAILED")) {
+            throw new IllegalStateException("Pre-flight check failed: Critical component failure. Status: ${healthStatus}")
+        }
+
+        println "SERVICE: Pre-flight checks passed."
     }
 
     // Implementujemy metodę z interfejsu
@@ -59,6 +93,9 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
             connection.connect(token)
             connectedByThisService = true
 
+            // ZMIANA: Wykonujemy sprawdzenie stanu przed główną operacją
+            performPreflightChecks(commandModule)
+
             // Wysyłamy sekwencję bardziej realistycznych komend
             commandModule.sendCommand("SET_CAMERA_MODE:ACTIVE_IMAGING")
             String rawData = connection.fetchData(satelliteId)
@@ -68,7 +105,6 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
             repository.saveReprocessedData(satelliteId, processedData)
             telemetryModule.sendEvent("REPROCESSING_SUCCESS", [satelliteId: satelliteId, dataSize: processedData.length()])
             return true
-
         } catch (Exception e) {
             telemetryModule.sendEvent("REPROCESSING_FAILURE", [satelliteId: satelliteId, error: e.message])
             println "Error during single reprocessing attempt: ${e.message}"
