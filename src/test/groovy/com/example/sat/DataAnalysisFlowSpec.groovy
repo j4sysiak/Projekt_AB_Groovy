@@ -5,7 +5,7 @@ import com.example.sat.fakes.ManualMockConnection
 
 class DataAnalysisFlowSpec extends SomeBaseTest { // Dziedziczymy, żeby mieć dostęp do `SYSTEM_CONFIGS`
 
-    def "should raise an alert when an anomaly is detected in satellite data"() {
+    def "Should raise an alert when an anomaly is detected in satellite data"() {
         given: "a service chain configured to download data containing a hurricane warning"
         def satelliteId = "SAT-STORM-01"
         def config = SYSTEM_CONFIGS["ALPHA"]
@@ -18,19 +18,30 @@ class DataAnalysisFlowSpec extends SomeBaseTest { // Dziedziczymy, żeby mieć d
         def alertingService = new ManualMockAlertingService()
 
         // 2. Tworzymy prawdziwe implementacje dla reszty łańcucha
-        def dataAnalyzer = new MeteorologicalDataAnalyzerImpl()
-        // Używamy mocków Spocka dla prostszych zależności, które tylko trzeba "wyciszyć"
+        //    Mocki Spocka dla "tła" - teraz z PEŁNĄ konfiguracją
         def repository = Mock(DataRepository)
         def tokenCache = Mock(TokenCache)
-        tokenCache.getToken() >> "VALID-TOKEN"
         def telemetryModule = Mock(TelemetryModule)
         def commandModule = Mock(CommandModule)
         def validator = Mock(InputValidator)
         def passPredictor = Mock(IPassPredictor)
-        passPredictor.isCommunicationWindowOpen() >> true // Zawsze jest okno
         def positionVerifier = Mock(IPositionVerifier)
 
-        // 3. Tworzymy nasz obiekt testowany
+        // === KONFIGURACJA ZACHOWANIA MOCKÓW ===
+        // Musimy zasymulować "happy path" dla wszystkich bramek kontrolnych
+        passPredictor.isCommunicationWindowOpen() >> true // Zawsze jest okno
+        positionVerifier.verifyPosition(satelliteId) >> { /* Nic nie robi, czyli przechodzi */ }
+        validator.validateSatelliteId(satelliteId) >> { /* Nic nie robi, czyli przechodzi */ }
+        tokenCache.getToken() >> "VALID-TOKEN"
+
+        // Mówimy commandModule, jak ma odpowiadać na zapytania o status
+        commandModule.sendCommand("CHECK_POWER_STATUS") >> "STATUS: Battery: 95.00%, Panels: CHARGING"
+        commandModule.sendCommand("CHECK_SYSTEM_HEALTH") >> "STATUS: Thrusters: NOMINAL"
+
+        // 3. Prawdziwa implementacja analizatora, bo jego logikę testujemy pośrednio
+        def dataAnalyzer = new MeteorologicalDataAnalyzerImpl()
+
+        // 4. Tworzymy nasz obiekt testowany
         def service = new ReprocessingServiceImpl(
                 connection, repository, tokenCache, telemetryModule,
                 commandModule, validator, passPredictor, positionVerifier,
@@ -41,10 +52,14 @@ class DataAnalysisFlowSpec extends SomeBaseTest { // Dziedziczymy, żeby mieć d
         service.reprocessDataForSatellite(satelliteId)
 
         then: "a hurricane alert was raised"
-        // Sprawdzamy stan naszego ręcznego mocka
         alertingService.alerts.size() == 1
         def alert = alertingService.alerts[0]
         alert.type == "HURRICANE"
         alert.message.contains("Hurricane detected")
+
+        and: "the successful command sequence was sent"
+        // Możemy teraz dodać weryfikację interakcji z mockami Spocka
+        1 * commandModule.sendCommand("SET_CAMERA_MODE:ACTIVE_IMAGING")
+        1 * commandModule.sendCommand("SET_CAMERA_MODE:STANDBY")
     }
 }

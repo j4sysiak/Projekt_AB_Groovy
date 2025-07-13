@@ -126,7 +126,6 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
                 alertingService.raiseAlert(analysisResult.anomalyType, analysisResult.details)
             }
 
-
             return true
         } catch (Exception e) {
             telemetryModule.sendEvent("REPROCESSING_FAILURE", [satelliteId: satelliteId, error: e.message])
