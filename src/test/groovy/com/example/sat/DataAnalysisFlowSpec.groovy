@@ -2,7 +2,6 @@ package com.example.sat
 
 import com.example.sat.fakes.ManualMockAlertingService
 import com.example.sat.fakes.ManualMockConnection
-import spock.lang.Specification
 
 class DataAnalysisFlowSpec extends SomeBaseTest { // Dziedziczymy, żeby mieć dostęp do `SYSTEM_CONFIGS`
 
