@@ -10,8 +10,9 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
     final TelemetryModule telemetryModule
     final CommandModule commandModule
     final InputValidator validator
-    // NOWA ZALEŻNOŚĆ
     final IPassPredictor passPredictor
+    // NOWA ZALEŻNOŚĆ
+    final IPositionVerifier positionVerifier
 
     ReprocessingServiceImpl(
             SatelliteConnection connection,
@@ -20,7 +21,8 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
             TelemetryModule telemetryModule,
             CommandModule commandModule,
             InputValidator validator,
-            IPassPredictor passPredictor) {
+            IPassPredictor passPredictor,
+            IPositionVerifier positionVerifier) {
         this.connection = connection
         this.repository = repository
         this.tokenCache = tokenCache
@@ -28,6 +30,7 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
         this.commandModule = commandModule
         this.validator = validator
         this.passPredictor = passPredictor
+        this.positionVerifier = positionVerifier
     }
 
     private void performPreflightChecks(CommandModule cmd) {
@@ -72,6 +75,16 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
         if (!passPredictor.isCommunicationWindowOpen()) {
             println "Error during reprocessing: No communication window available at this time."
             // Możemy tu też wysłać specjalny event telemetryczny
+            return false
+        }
+
+        // KROK 0.5: WERYFIKACJA POZYCJI
+        try {
+            positionVerifier.verifyPosition(satelliteId)
+        } catch (PositionMismatchException e) {
+            println "Error during reprocessing: ${e.message}"
+            // Wyślijmy alert, że model orbitalny wymaga korekty
+            telemetryModule.sendEvent("ORBITAL_MODEL_DRIFT_DETECTED", [satelliteId: satelliteId, details: e.message])
             return false
         }
 
