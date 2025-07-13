@@ -8,7 +8,8 @@ class SecretVaultImpl implements SecretVault {
     // Tutaj symulujemy je za pomocą mapy.
     private final Map<String, String> secrets = [
             "alpha-system/api-key": "ALPHA-VALID-API-KEY",
-            "beta-system/api-key": "BETA-SECRET-KEY-99"
+            "beta-system/api-key": "BETA-SECRET-KEY-99",
+            "secret-name": "ALPHA-VALID-API-KEY" // <-- Dodaj tę linię
     ]
 
     SecretVaultImpl(String vaultAddress) {
