@@ -1,43 +1,41 @@
 package com.example.sat
 
+import com.example.sat.fakes.ManualMockDataRepository
+import com.example.sat.fakes.ManualMockTelemetryModule
+import com.example.sat.fakes.ManualMockTokenCache
 import com.example.sat.fakes.SatelliteSimulator
 import spock.lang.Specification
 
+// Ta klasa nie dziedziczy po SomeBaseTest, bo wszystko budujemy ręcznie.
 class AdvancedSimulatorScenariosSpec extends Specification {
 
-    // Helper do tworzenia serwisu, aby nie powielać kodu w każdym teście
+    // Helper do tworzenia serwisu z naszymi ręcznymi fejkami
     private ReprocessingServiceImpl createService(SatelliteSimulator simulator) {
-        // Używamy "fejków" i mocków dla zależności, które nie są symulowane
-        def tokenCache = Mock(TokenCache)
-        tokenCache.getToken() >> "VALID-SIM-TOKEN"
-
         return new ReprocessingServiceImpl(
                 simulator,
-                Mock(DataRepository),
-                tokenCache,
-                Mock(TelemetryModule),
-                simulator,
-                new InputValidatorImpl()
+                new ManualMockDataRepository(),
+                new ManualMockTokenCache(),
+                new ManualMockTelemetryModule(),
+                simulator, new InputValidatorImpl()
         )
     }
 
     def "should pass pre-flight checks when simulator is in a healthy state"() {
-        given: "a healthy simulator and a service"
+        given: "a healthy simulator and a service built with fakes"
         def simulator = new SatelliteSimulator()
         simulator.batteryLevel = 80.0
-        simulator.thrusterHealth = "NOMINAL"
 
-        // ZMIANA: Tworzymy 'service' i od razu tworzymy jego 'Spy'
-        // 'service' jest teraz widoczne w całym teście.
-        def service = Spy(createService(simulator))
+        def service = createService(simulator)
 
         when: "reprocessing is triggered"
-        // Używamy teraz 'service', który jest już "szpiegiem"
+        // Symulujemy, że fetchData zawiedzie, aby zatrzymać test w odpowiednim momencie
+        simulator.forceFetchDataToFail = true
         service.reprocessDataForSatellite("SAT-HEALTHY")
 
-        then: "pre-flight checks are performed and passed"
-        // Teraz asercja zadziała, bo 'service' jest widoczne i jest szpiegiem
-        1 * service.performPreflightChecks(_)
+        then: "the pre-flight check commands were sent and the correct history is recorded"
+        // Weryfikujemy stan naszego symulatora, a nie "magiczne" interakcje Spocka
+        simulator.commandHistory.contains("CHECK_POWER_STATUS")
+        simulator.commandHistory.contains("CHECK_SYSTEM_HEALTH")
     }
 
     def "should abort mission if simulator reports critically low power"() {
@@ -50,26 +48,25 @@ class AdvancedSimulatorScenariosSpec extends Specification {
         when: "reprocessing is triggered"
         boolean result = service.reprocessDataForSatellite("SAT-LOW-POWER")
 
-        then: "the operation fails immediately after pre-flight checks"
+        then: "the operation fails as expected"
         result == false
 
-        and: "no attempt was made to take a photo"
-        // Sprawdzamy, że komenda do włączenia aparatu nigdy nie została wysłana
-        simulator.commandHistory.contains("SET_CAMERA_MODE:ACTIVE_IMAGING") == false
+        and: "the camera activation command was never sent"
+        !simulator.commandHistory.contains("SET_CAMERA_MODE:ACTIVE_IMAGING")
     }
 
     def "should correctly simulate the day-night power cycle"() {
         given: "a simulator with medium battery level in darkness"
         def simulator = new SatelliteSimulator()
         simulator.batteryLevel = 50.0
-        simulator.simulateTimePassage(false) // Jest noc, bateria się rozładowuje
+        simulator.simulateTimePassage(false)
 
         expect: "battery level has decreased"
         simulator.batteryLevel == 48.0
         simulator.solarPanelStatus == "IDLE"
 
         when: "time passes and the simulator enters daylight"
-        simulator.simulateTimePassage(true) // Nadchodzi dzień, panele zaczynają ładować
+        simulator.simulateTimePassage(true)
 
         then: "battery level increases and panel status changes"
         simulator.batteryLevel == 58.0

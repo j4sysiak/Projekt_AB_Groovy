@@ -2,9 +2,13 @@ package com.example.sat.fakes
 
 import com.example.sat.CommandModule
 import com.example.sat.SatelliteConnection
+import java.util.Locale // <-- DODAJ TEN IMPORT
 
 // Ten symulator udaje zarówno moduł komend, jak i połączenie z satelitą.
 class SatelliteSimulator implements SatelliteConnection, CommandModule {
+
+    // Dodajmy flagę, aby móc kontrolować, kiedy fetchData ma zawieść.
+    boolean forceFetchDataToFail = false
 
     // === NOWY, DYNAMICZNY STAN WEWNĘTRZNY ===
     double batteryLevel = 95.0 // w procentach
@@ -43,10 +47,16 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
     // === Zmodyfikowane metody, które zależą od nowego stanu ===
     @Override
     String fetchData(String satelliteId) {
+        if (forceFetchDataToFail) {
+            throw new RuntimeException("Forced fetch data failure for testing")
+        }
+
         if (!connected) throw new IllegalStateException("SIMULATOR: Not connected.")
+
         if (batteryLevel < POWER_CONSUMPTION_TAKE_PHOTO + 5.0) {
             throw new RuntimeException("SIMULATOR: Insufficient power to take and fetch photo. Battery at ${batteryLevel}%.")
         }
+
         if (cameraMode != "ACTIVE_IMAGING") {
             throw new RuntimeException("SIMULATOR: Cannot fetch data, camera is in ${cameraMode} mode.")
         }
@@ -59,12 +69,12 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
     // === Implementacja interfejsu CommandModule ===
     @Override
     String sendCommand(String command) {
-        if (!connected) throw new IllegalStateException("SIMULATOR: Not connected, cannot send command.")
+        if (!connected) throw new IllegalStateException("SIMULATOR: Not connected.")
 
         println "SIMULATOR: Received command '${command}'"
         commandHistory.add(command)
+        batteryLevel -= POWER_CONSUMPTION_PER_COMMAND
 
-        // Sprawdzanie stanu przed wykonaniem komendy
         if (command.contains("THRUSTER") && thrusterHealth == "FAILED") {
             return "NACK: Command '${command}' failed. Thrusters are in FAILED state."
         }
@@ -72,7 +82,6 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
             return "NACK: Command '${command}' refused. Critically low power: ${batteryLevel}%."
         }
 
-        // Logika symulatora reagująca na komendy
         switch (command) {
             case "SET_CAMERA_MODE:ACTIVE_IMAGING":
                 this.cameraMode = "ACTIVE_IMAGING"
@@ -80,9 +89,9 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
             case "SET_CAMERA_MODE:STANDBY":
                 this.cameraMode = "STANDBY"
                 return "ACK: Camera set to STANDBY"
-                // NOWE KOMENDY do sprawdzania stanu
             case "CHECK_POWER_STATUS":
-                return "STATUS: Battery: ${String.format('%.2f', batteryLevel)}%, Panels: ${solarPanelStatus}"
+                // KLUCZOWA ZMIANA: Używamy Locale.US, aby ZAWSZE generować kropkę
+                return String.format(Locale.US, "STATUS: Battery: %.2f%%, Panels: %s", batteryLevel, solarPanelStatus)
             case "CHECK_SYSTEM_HEALTH":
                 return "STATUS: Thrusters: ${thrusterHealth}"
             default:
