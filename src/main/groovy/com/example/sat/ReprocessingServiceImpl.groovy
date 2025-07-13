@@ -10,17 +10,24 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
     final TelemetryModule telemetryModule
     final CommandModule commandModule
     final InputValidator validator
+    // NOWA ZALEŻNOŚĆ
+    final IPassPredictor passPredictor
 
     ReprocessingServiceImpl(
-            SatelliteConnection connection, DataRepository repository,
-            TokenCache tokenCache, TelemetryModule telemetryModule,
-            CommandModule commandModule, InputValidator validator) {
+            SatelliteConnection connection,
+            DataRepository repository,
+            TokenCache tokenCache,
+            TelemetryModule telemetryModule,
+            CommandModule commandModule,
+            InputValidator validator,
+            IPassPredictor passPredictor) {
         this.connection = connection
         this.repository = repository
         this.tokenCache = tokenCache
         this.telemetryModule = telemetryModule
         this.commandModule = commandModule
         this.validator = validator
+        this.passPredictor = passPredictor
     }
 
     private void performPreflightChecks(CommandModule cmd) {
@@ -61,6 +68,13 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
 
     @Override
     boolean reprocessDataForSatellite(String satelliteId) {
+        // KROK 0: SPRAWDZENIE OKNA KOMUNIKACYJNEGO
+        if (!passPredictor.isCommunicationWindowOpen()) {
+            println "Error during reprocessing: No communication window available at this time."
+            // Możemy tu też wysłać specjalny event telemetryczny
+            return false
+        }
+
         try {
             validator.validateSatelliteId(satelliteId)
         } catch (ValidationException e) {
