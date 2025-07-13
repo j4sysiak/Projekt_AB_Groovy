@@ -11,8 +11,10 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
     final CommandModule commandModule
     final InputValidator validator
     final IPassPredictor passPredictor
-    // NOWA ZALEŻNOŚĆ
     final IPositionVerifier positionVerifier
+    // NOWE ZALEŻNOŚCI
+    final IDataAnalyzer dataAnalyzer
+    final IAlertingService alertingService
 
     ReprocessingServiceImpl(
             SatelliteConnection connection,
@@ -22,7 +24,9 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
             CommandModule commandModule,
             InputValidator validator,
             IPassPredictor passPredictor,
-            IPositionVerifier positionVerifier) {
+            IPositionVerifier positionVerifier,
+            IDataAnalyzer dataAnalyzer,
+            IAlertingService alertingService) {
         this.connection = connection
         this.repository = repository
         this.tokenCache = tokenCache
@@ -31,6 +35,8 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
         this.validator = validator
         this.passPredictor = passPredictor
         this.positionVerifier = positionVerifier
+        this.dataAnalyzer = dataAnalyzer
+        this.alertingService = alertingService
     }
 
     private void performPreflightChecks(CommandModule cmd) {
@@ -112,6 +118,15 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
             repository.saveReprocessedData(satelliteId, processedData)
 
             telemetryModule.sendEvent("REPROCESSING_SUCCESS", [satelliteId: satelliteId, dataSize: processedData.length()])
+
+            // === NOWA LOGIKA: ANALIZA I ALARMOWANIE ===
+            println "SERVICE: Initiating post-processing data analysis..."
+            AnalysisResult analysisResult = dataAnalyzer.analyze(rawData)
+            if (analysisResult.anomalyDetected) {
+                alertingService.raiseAlert(analysisResult.anomalyType, analysisResult.details)
+            }
+
+
             return true
         } catch (Exception e) {
             telemetryModule.sendEvent("REPROCESSING_FAILURE", [satelliteId: satelliteId, error: e.message])
