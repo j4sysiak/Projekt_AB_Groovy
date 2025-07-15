@@ -5,7 +5,7 @@ import com.example.sat.dto.CommandResponse
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
-// Symuluje system naziemny, który wysyła komendy
+// Symuluje system naziemny, który wysyła komendy  ------>   to Satellite
 class FakeGroundControlServer {
     FakeSatelliteServer satelliteServer // "Połączenie sieciowe" do serwera satelity
 

@@ -14,7 +14,8 @@ Napiszemy test integracyjny: Zweryfikuje on cały przepływ: od stworzenia komen
 To jest fantastyczne ćwiczenie, które idealnie pasuje do Twojego projektu.
 
 Krok 1: Definicje Modeli Danych i "Fałszywych" Serwerów
-Będziemy potrzebować biblioteki do obsługi JSON. Groovy ma wbudowaną doskonałą obsługę (JsonSlurper i JsonOutput).
+Będziemy potrzebować biblioteki do obsługi JSON. 
+Groovy ma wbudowaną doskonałą obsługę (JsonSlurper i JsonOutput).
 
 1.1. Modele Danych (DTO - Data Transfer Objects)
 Te klasy reprezentują nasze komunikaty JSON.

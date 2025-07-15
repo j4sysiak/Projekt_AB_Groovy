@@ -5,7 +5,7 @@ import com.example.sat.dto.CommandResponse
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
-// Symuluje serwer na pokładzie satelity, który odbiera komendy
+// Symuluje serwer na pokładzie satelity, który odbiera komendy   <-----------    od Ground Control Server
 class FakeSatelliteServer {
     SatelliteSimulator simulator // Używa naszego istniejącego symulatora do wykonania pracy
 
