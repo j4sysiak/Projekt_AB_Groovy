@@ -8,7 +8,7 @@ class CommandModuleImpl implements CommandModule {
     int commandPort
 
     @Override
-    String sendCommand(String command) {
+    String sendCommand(String command, Map params ) {
         println "COMMAND to [${commandHost}:${commandPort}]: Sending '${command}'"
         return "ACK for command: ${command}"
     }

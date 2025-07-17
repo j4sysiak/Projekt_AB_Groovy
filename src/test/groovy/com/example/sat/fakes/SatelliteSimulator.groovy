@@ -2,6 +2,8 @@ package com.example.sat.fakes
 
 import com.example.sat.CommandModule
 import com.example.sat.SatelliteConnection
+import com.example.sat.dto.PhotoData
+
 import java.util.Locale // <-- DODAJ TEN IMPORT
 
 // Ten symulator udaje zarówno moduł komend, jak i połączenie z satelitą.
@@ -24,6 +26,9 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
     String lastReceivedAuthToken
     int commandsReceived = 0
     List<String> commandHistory = []
+    // NOWY STAN: Kolejka zdjęć do wysłania
+    List<PhotoData> photoQueue = []
+
 
     SatelliteSimulator(){
         println ("konstruktor niemy of SatelliteSimulator")
@@ -68,7 +73,7 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
 
     // === Implementacja interfejsu CommandModule ===
     @Override
-    String sendCommand(String command) {
+    String sendCommand(String command, Map params = [:]) {  // Dodajemy opcjonalne parametry
         if (!connected) throw new IllegalStateException("SIMULATOR: Not connected.")
 
         println "SIMULATOR: Received command '${command}'"
@@ -80,6 +85,22 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
         }
         if (batteryLevel < 10.0) {
             return "NACK: Command '${command}' refused. Critically low power: ${batteryLevel}%."
+        }
+
+        // NOWA KOMENDA: Robienie zdjęć
+        if (command == "TAKE_PHOTOS") {
+            int count = params.get("numberOfPhotos", 1)
+            String quality = params.get("quality", "HIGH")
+
+            if (quality != "HIGH") {
+                return "NACK: Only HIGH quality photos are supported by this firmware."
+            }
+
+            count.times {
+                println "SIMULATOR: Taking a ${quality} quality photo..."
+                photoQueue.add(new PhotoData(quality: quality, content: "Simulated high-quality image data..."))
+            }
+            return "ACK: ${count} photos taken and queued for downlink."
         }
 
         switch (command) {
@@ -97,6 +118,18 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
             default:
                 return "NACK: Unknown command"
         }
+    }
+
+    // NOWA METODA: Wysyłanie danych na ziemię
+    List<PhotoData> downlinkQueuedPhotos() {
+        if (photoQueue.isEmpty()) {
+            println "SIMULATOR: No photos in queue to downlink."
+            return []
+        }
+        println "SIMULATOR: Downlinking ${photoQueue.size()} photos..."
+        def photosToSend = new ArrayList<>(photoQueue)
+        photoQueue.clear() // Opróżniamy kolejkę po wysłaniu
+        return photosToSend
     }
 
     // ... reszta metod (connect, isConnected, disconnect) bez zmian ...
