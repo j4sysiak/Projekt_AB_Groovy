@@ -35,17 +35,24 @@ class DataAnalysisFlowSpec extends SomeBaseTest { // Dziedziczymy, żeby mieć d
         tokenCache.getToken() >> "VALID-TOKEN"
 
         // Mówimy commandModule, jak ma odpowiadać na zapytania o status
-        commandModule.sendCommand("CHECK_POWER_STATUS") >> "STATUS: Battery: 95.00%, Panels: CHARGING"
-        commandModule.sendCommand("CHECK_SYSTEM_HEALTH") >> "STATUS: Thrusters: NOMINAL"
+        commandModule.sendCommand("CHECK_POWER_STATUS", _) >> "STATUS: Battery: 95.00%, Panels: CHARGING"
+        commandModule.sendCommand("CHECK_SYSTEM_HEALTH", _) >> "STATUS: Thrusters: NOMINAL"
 
         // 3. Prawdziwa implementacja analizatora, bo jego logikę testujemy pośrednio
         def dataAnalyzer = new MeteorologicalDataAnalyzerImpl()
 
         // 4. Tworzymy nasz obiekt testowany
         def service = new ReprocessingServiceImpl(
-                connection, repository, tokenCache, telemetryModule,
-                commandModule, validator, passPredictor, positionVerifier,
-                dataAnalyzer, alertingService
+                connection,
+                repository,
+                tokenCache,
+                telemetryModule,
+                commandModule,
+                validator,
+                passPredictor,
+                positionVerifier,
+                dataAnalyzer,
+                alertingService
         )
 
         when: "the data is reprocessed"
@@ -59,7 +66,7 @@ class DataAnalysisFlowSpec extends SomeBaseTest { // Dziedziczymy, żeby mieć d
 
         and: "the successful command sequence was sent"
         // Możemy teraz dodać weryfikację interakcji z mockami Spocka
-        1 * commandModule.sendCommand("SET_CAMERA_MODE:ACTIVE_IMAGING")
-        1 * commandModule.sendCommand("SET_CAMERA_MODE:STANDBY")
+        1 * commandModule.sendCommand("SET_CAMERA_MODE:ACTIVE_IMAGING", _)
+        1 * commandModule.sendCommand("SET_CAMERA_MODE:STANDBY", _)
     }
 }

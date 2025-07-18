@@ -41,7 +41,7 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
 
     private void performPreflightChecks(CommandModule cmd) {
         println "SERVICE: Performing pre-flight checks..."
-        String powerStatus = cmd.sendCommand("CHECK_POWER_STATUS")
+        String powerStatus = cmd.sendCommand("CHECK_POWER_STATUS", [:])
         println "SERVICE DEBUG: Received power status response: '${powerStatus}'"
 
         if (powerStatus.contains("NACK")) {
@@ -68,7 +68,7 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
             throw new IllegalStateException("Pre-flight check failed: Could not parse power status response: ${powerStatus}")
         }
 
-        String healthStatus = cmd.sendCommand("CHECK_SYSTEM_HEALTH")
+        String healthStatus = cmd.sendCommand("CHECK_SYSTEM_HEALTH", [:])
         if (healthStatus.contains("FAILED")) {
             throw new IllegalStateException("Pre-flight check failed: Critical component failure. Status: ${healthStatus}")
         }
@@ -110,9 +110,9 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
 
             performPreflightChecks(commandModule)
 
-            commandModule.sendCommand("SET_CAMERA_MODE:ACTIVE_IMAGING")
+            commandModule.sendCommand("SET_CAMERA_MODE:ACTIVE_IMAGING", [:])
             String rawData = connection.fetchData(satelliteId)
-            commandModule.sendCommand("SET_CAMERA_MODE:STANDBY")
+            commandModule.sendCommand("SET_CAMERA_MODE:STANDBY", [:])
 
             String processedData = "PROCESSED: [${rawData}]"
             repository.saveReprocessedData(satelliteId, processedData)
