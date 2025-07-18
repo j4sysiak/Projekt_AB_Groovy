@@ -10,8 +10,11 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
     final TelemetryModule telemetryModule
     final CommandModule commandModule
     final InputValidator validator
-    // NOWA ZALEŻNOŚĆ
     final IPassPredictor passPredictor
+    final IPositionVerifier positionVerifier
+    // NOWE ZALEŻNOŚCI
+    final IDataAnalyzer dataAnalyzer
+    final IAlertingService alertingService
 
     ReprocessingServiceImpl(
             SatelliteConnection connection,
@@ -20,7 +23,10 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
             TelemetryModule telemetryModule,
             CommandModule commandModule,
             InputValidator validator,
-            IPassPredictor passPredictor) {
+            IPassPredictor passPredictor,
+            IPositionVerifier positionVerifier,
+            IDataAnalyzer dataAnalyzer,
+            IAlertingService alertingService) {
         this.connection = connection
         this.repository = repository
         this.tokenCache = tokenCache
@@ -28,6 +34,9 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
         this.commandModule = commandModule
         this.validator = validator
         this.passPredictor = passPredictor
+        this.positionVerifier = positionVerifier
+        this.dataAnalyzer = dataAnalyzer
+        this.alertingService = alertingService
     }
 
     private void performPreflightChecks(CommandModule cmd) {
@@ -75,6 +84,16 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
             return false
         }
 
+        // KROK 0.5: WERYFIKACJA POZYCJI
+        try {
+            positionVerifier.verifyPosition(satelliteId)
+        } catch (PositionMismatchException e) {
+            println "Error during reprocessing: ${e.message}"
+            // Wyślijmy alert, że model orbitalny wymaga korekty
+            telemetryModule.sendEvent("ORBITAL_MODEL_DRIFT_DETECTED", [satelliteId: satelliteId, details: e.message])
+            return false
+        }
+
         try {
             validator.validateSatelliteId(satelliteId)
         } catch (ValidationException e) {
@@ -99,6 +118,14 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
             repository.saveReprocessedData(satelliteId, processedData)
 
             telemetryModule.sendEvent("REPROCESSING_SUCCESS", [satelliteId: satelliteId, dataSize: processedData.length()])
+
+            // === NOWA LOGIKA: ANALIZA I ALARMOWANIE ===
+            println "SERVICE: Initiating post-processing data analysis..."
+            AnalysisResult analysisResult = dataAnalyzer.analyze(rawData)
+            if (analysisResult.anomalyDetected) {
+                alertingService.raiseAlert(analysisResult.anomalyType, analysisResult.details)
+            }
+
             return true
         } catch (Exception e) {
             telemetryModule.sendEvent("REPROCESSING_FAILURE", [satelliteId: satelliteId, error: e.message])
