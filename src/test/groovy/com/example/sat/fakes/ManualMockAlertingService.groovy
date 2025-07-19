@@ -1,8 +1,6 @@
 package com.example.sat.fakes
 import com.example.sat.IAlertingService
 
-class AlertRecord { String type; String message }
-
 class ManualMockAlertingService implements IAlertingService {
     List<AlertRecord> alerts = []
 

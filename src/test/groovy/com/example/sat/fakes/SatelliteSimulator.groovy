@@ -152,4 +152,14 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
         println "SIMULATOR: Disconnecting."
         this.connected = false
     }
+    void resetState() {
+        this.batteryLevel = 95.0
+        this.cameraMode = "STANDBY"
+        this.connected = false
+        this.commandHistory = []
+        this.photoQueue = []
+        this.thrusterHealth = "NOMINAL"
+        this.powerOn = true
+        println "SIMULATOR: State has been reset."
+    }
 }

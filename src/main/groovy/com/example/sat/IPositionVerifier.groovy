@@ -5,8 +5,3 @@ interface IPositionVerifier {
     void verifyPosition(String satelliteId) throws PositionMismatchException
 }
 
-class PositionMismatchException extends RuntimeException {
-    PositionMismatchException(String message) {
-        super(message)
-    }
-}
