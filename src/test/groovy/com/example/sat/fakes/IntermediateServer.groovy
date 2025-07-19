@@ -1,6 +1,5 @@
 package com.example.sat.fakes
 
-import com.example.sat.dto.PhotoData
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 

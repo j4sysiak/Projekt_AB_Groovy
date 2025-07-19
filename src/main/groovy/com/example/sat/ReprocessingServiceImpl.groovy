@@ -12,7 +12,6 @@ class ReprocessingServiceImpl implements ISingleReprocessor {
     final InputValidator validator
     final IPassPredictor passPredictor
     final IPositionVerifier positionVerifier
-    // NOWE ZALEŻNOŚCI
     final IDataAnalyzer dataAnalyzer
     final IAlertingService alertingService
 

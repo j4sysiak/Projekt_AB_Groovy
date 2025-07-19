@@ -10,6 +10,10 @@ import com.example.sat.dto.TakePhotosRequest
 class FakeGroundControlServer {
     FakeSatelliteServer satelliteServer // "Połączenie sieciowe" do serwera satelity
 
+    FakeGroundControlServer(){
+        println "Tworzymy \"prawdziwy\" system naziemny"
+    }
+
     // NOWE POLE: przechowuje finalnie odebrane dane
     List<Map> receivedPhotos = []
 

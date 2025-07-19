@@ -1,14 +1,18 @@
 package com.example.sat
 
-import com.example.sat.fakes.* // Importujemy wszystkie nasze niezawodne fejki
-import spock.lang.Specification
+import com.example.sat.fakes.*
+
+// Importujemy wszystkie nasze niezawodne fejki
 
 class DataPipelineSpec extends SomeBaseTest { // Dziedziczymy, aby mieć dostęp do SYSTEM_CONFIGS
 
-    def "should successfully flow data from satellite, through intermediate server, to ground control"() {
+    DataPipelineSpec() {
+    }
+
+    def "should successfully flow data from satellite, through intermediate server SERW1, to ground control"() {
         given: "a fully interconnected system of simulated servers and fakes"
         def satelliteId = "SAT-PIPELINE-01"
-        def config = SYSTEM_CONFIGS["ALPHA"]
+       // def config = SYSTEM_CONFIGS["ALPHA"]
 
         // === ETAP 1: Budowa Komponentów ===
 
@@ -59,7 +63,7 @@ class DataPipelineSpec extends SomeBaseTest { // Dziedziczymy, aby mieć dostęp
         // Etap 4: Teraz symulujemy, że te zapisane dane są wysyłane do serwera pośredniczącego
         // W prawdziwym systemie to byłby osobny proces, tutaj symulujemy go ręcznie.
         println "\nPIPELINE STEP 3: Downlinking data to intermediate server..."
-        def dataPackage = [ [photoId: "IMG_PIPE_1", content: "PIPELINE_DATA"] ]
+        def dataPackage = [[photoId: "IMG_PIPE_1", content: "PIPELINE_DATA"]]
         intermediateServer.receiveDataFromSatellite(groovy.json.JsonOutput.toJson(dataPackage))
 
         // Etap 5: SERW1 przetwarza i archiwizuje otrzymane pliki
