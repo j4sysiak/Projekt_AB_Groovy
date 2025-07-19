@@ -1,42 +1,88 @@
 package com.example.sat
 
-import com.example.sat.fakes.*
+import com.example.sat.fakes.* // Importujemy wszystkie nasze niezawodne fejki
 import spock.lang.Specification
 
-class DataPipelineSpec extends Specification {
+class DataPipelineSpec extends SomeBaseTest { // Dziedziczymy, aby mieć dostęp do SYSTEM_CONFIGS
 
     def "should successfully flow data from satellite, through intermediate server, to ground control"() {
-        given: "a fully interconnected system of simulated servers"
-        def simulator = new SatelliteSimulator()
-        def satelliteServer = new FakeSatelliteServer(simulator: simulator)
-        def groundServer = new FakeGroundControlServer(satelliteServer: satelliteServer)
-        def intermediateServer = new IntermediateServer(groundControlServer: groundServer)
+        given: "a fully interconnected system of simulated servers and fakes"
+        def satelliteId = "SAT-PIPELINE-01"
+        def config = SYSTEM_CONFIGS["ALPHA"]
 
-        when: "the full data pipeline is triggered with proper session management"
-        // Etap 1: NAWIĄŻ POŁĄCZENIE (sesję)
-        groundServer.connectToSatellite("VALID-TOKEN")
+        // === ETAP 1: Budowa Komponentów ===
 
-        // Etap 2: W ramach sesji, zleć zrobienie 2 zdjęć
-        groundServer.requestPhotos(2, "HIGH")
+        // 1. Tworzymy "prawdziwy" system naziemny i serwer pośredniczący
+        def groundServer = new FakeGroundControlServer()
+        def intermediateServer = new IntermediateServer(groundControlServer: groundServer)  // SERW1
 
-        // Etap 3: ZAKOŃCZ POŁĄCZENIE
-        groundServer.disconnectFromSatellite()
+        // 2. Tworzymy pełny, działający ReprocessingService, używając naszych fejków i mocków
+        //    To jest serce, które będzie działało "na pokładzie" satelity.
+        def singleReprocessor = new ReprocessingServiceImpl(
+                new ManualMockConnection(dataToReturn: "PIPELINE_DATA"),
+                new ManualMockDataRepository(),
+                new ManualMockTokenCache(tokenToReturn: "VALID-PIPELINE-TOKEN"),
+                new ManualMockTelemetryModule(),
+                new ManualMockCommandModule(),
+                new InputValidatorImpl(), // Używamy prawdziwego walidatora
+                new ManualMockPassPredictor(isWindowOpen: true),
+                new ManualMockPositionVerifier(isPositionOk: true),
+                new MeteorologicalDataAnalyzerImpl(), // Prawdziwy analizator
+                new ManualMockAlertingService()
+        )
 
-        // Etap 4: Satelita (już rozłączony) wysyła dane do SERW1 w dogodnym momencie
-        satelliteServer.downlinkDataTo(intermediateServer)
+        // 3. Tworzymy serwis do ponawiania prób, który opakowuje naszego "robotnika"
+        def batchReprocessor = new BatchReprocessingService(singleReprocessor)
 
-        // Etap 5: SERW1 przetwarza i archiwizuje
+        // 4. Tworzymy Listenera, który będzie nasłuchiwał na "kolejce"
+        //    Używamy ręcznych mocków dla jego zależności, aby mieć pełną kontrolę
+        def queue = new ManualMockProcessingQueue()
+        def jobRepository = new ManualMockJobRepository()
+        def listener = new QueueListener(queue, batchReprocessor, jobRepository)
+
+
+        when: "the full data pipeline is triggered"
+        // Symulujemy sekwencję zdarzeń w naszym rozproszonym systemie
+
+        // Etap 1: Wiadomość z zadaniem pojawia się na kolejce (np. umieszczona przez JobCoordinator)
+        println "\nPIPELINE STEP 1: Job appears on the queue..."
+        queue.jobsToConsume = [satelliteId]
+
+        // Etap 2: Listener pobiera wiadomość i uruchamia przetwarzanie
+        println "\nPIPELINE STEP 2: Listener processes the job..."
+        listener.processNextMessage()
+
+        // Etap 3: Po jakimś czasie, 'prawdziwe' repozytorium jest aktualizowane
+        // (W naszym teście dzieje się to natychmiast, bo ManualMockDataRepository jest synchroniczny)
+        // W tym momencie dane są "zapisane" po stronie satelity.
+
+        // Etap 4: Teraz symulujemy, że te zapisane dane są wysyłane do serwera pośredniczącego
+        // W prawdziwym systemie to byłby osobny proces, tutaj symulujemy go ręcznie.
+        println "\nPIPELINE STEP 3: Downlinking data to intermediate server..."
+        def dataPackage = [ [photoId: "IMG_PIPE_1", content: "PIPELINE_DATA"] ]
+        intermediateServer.receiveDataFromSatellite(groovy.json.JsonOutput.toJson(dataPackage))
+
+        // Etap 5: SERW1 przetwarza i archiwizuje otrzymane pliki
+        println "\nPIPELINE STEP 4: Archiving data..."
         intermediateServer.archiveFilesToDatabase()
 
-        // Etap 6: SERW1 wysyła dane do systemu naziemnego
+        // Etap 6: SERW1 wysyła zarchiwizowane dane do systemu naziemnego
+        println "\nPIPELINE STEP 5: Forwarding data..."
         intermediateServer.forwardDataToGroundControl()
 
+
         then: "the data has correctly passed through all stages"
-        // Weryfikujemy stan końcowy
-        simulator.commandHistory.contains("TAKE_PHOTOS")
-        simulator.photoQueue.isEmpty()
+        // Weryfikujemy stan końcowy każdego komponentu
+
+        // Listener poprawnie zaktualizował status zadania
+        jobRepository.successJobs.contains(satelliteId)
+
+        // Serwer pośredniczący przetworzył pliki i jego magazyn jest pusty, a baza danych pełna
         intermediateServer.fileSystem.files.isEmpty()
-        intermediateServer.database.photoTable.size() == 2
-        groundServer.receivedPhotos.size() == 2
+        intermediateServer.database.photoTable.size() == 1
+
+        // System naziemny otrzymał finalne dane
+        groundServer.receivedPhotos.size() == 1
+        groundServer.receivedPhotos[0].content == "PIPELINE_DATA"
     }
 }

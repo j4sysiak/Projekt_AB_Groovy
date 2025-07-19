@@ -6,9 +6,3 @@ interface SecretVault {
     String getSecret(String secretName) throws SecretRetrievalException
 }
 
-// Dedykowany wyjątek dla problemów z pobraniem sekretu
-class SecretRetrievalException extends RuntimeException {
-    SecretRetrievalException(String message) {
-        super(message)
-    }
-}
