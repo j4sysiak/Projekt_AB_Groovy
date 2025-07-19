@@ -6,6 +6,10 @@ import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import spark.Service
 
+import com.example.sat.IMissionPlanner
+import com.example.sat.MissionPlanningException
+import com.example.sat.dto.MissionRequest
+
 // Ta klasa uruchamia i zarządza serwerem kontroli naziemnej (GRUND)
 class GroundControlServerApp {
     private Service http
@@ -20,9 +24,18 @@ class GroundControlServerApp {
     // NOWE POLE: Flaga do symulowania awarii w testach
     private boolean forceUnhealthy = false
 
-    void start(int port, String satelliteServerUrl) {
+    // NOWA ZALEŻNOŚĆ: Planista Misji
+    private IMissionPlanner missionPlanner
+
+    // NOWA METODA: Do wstrzykiwania planisty w testach
+    void setMissionPlanner(IMissionPlanner planner) {
+        this.missionPlanner = planner
+    }
+
+               // Usuwamy 'satelliteServerUrl' bo nie jest już tu potrzebny
+    void start(int port) {
         println "SERVER (GRUND): Starting Ground Control Server on port ${port}..."
-        this.satClient = new SimpleHttpClient(satelliteServerUrl)
+        this.satClient = new SimpleHttpClient()
 
         http = Service.ignite()
         http.port(port)
@@ -57,45 +70,21 @@ class GroundControlServerApp {
         }
         // ==================================================
 
-        // POST /mission/photos - endpoint do zlecania nowej misji fotograficznej
-        http.post("/mission/photos") { req, res ->
+        // Zmieniamy endpoint /mission/photos na /missions
+        http.post("/missions") { req, res ->
             res.type("application/json")
-            def missionParams = new JsonSlurper().parseText(req.body())
-            def authToken = req.headers("Authorization")?.replace("Bearer ", "")
+            try {
+                def request = new MissionRequest(new JsonSlurper().parseText(req.body()))
 
-            println "GRUND: Received mission request: ${missionParams}"
+                // ZMIANA: Wołamy planistę, a nie bezpośrednio klienta SAT
+                def missionPlan = missionPlanner.createPlan(request)
 
-            // 1. Nawiąż połączenie z satelitą
-            def connectResponse = satClient.connect(authToken)
-            if (connectResponse.statusCode != 200) {
-                res.status(502) // Bad Gateway
-                return JsonOutput.toJson([status: "ERROR", message: "Could not connect to satellite."])
-            }
-
-            // 2. Wyślij komendę zlecającą zrobienie zdjęć
-            def commandResponse = satClient.sendCommand("TAKE_PHOTOS", [
-                    numberOfPhotos: missionParams.photoCount,
-                    quality: missionParams.quality
-            ])
-
-            // 3. Rozłącz się z satelitą
-            satClient.disconnect()
-
-            // 4. Zapisz status zadania i odpowiedz klientowi
-            def jobId = "MISSION-${jobIdCounter++}"
-            if (commandResponse.json.status == "ACK") {
-                jobStatuses[jobId] = [status: "ACCEPTED", details: commandResponse.json.message]
+                // W prawdziwym systemie tutaj zapisalibyśmy plan do bazy i zakolejkowali do wysłania
                 res.status(202) // Accepted
-                return JsonOutput.toJson([jobId: jobId, status: "ACCEPTED"])
-            } else {
-                jobStatuses[jobId] = [status: "REJECTED", details: commandResponse.json.message]
-                res.status(400) // Bad Request
-                // === KLUCZOWA ZMIANA: Dodajemy brakujące pole 'details' do odpowiedzi ===
-                return JsonOutput.toJson([
-                        jobId: jobId,
-                        status: "REJECTED",
-                        details: commandResponse.json.message
-                ])
+                return JsonOutput.toJson(missionPlan)
+            } catch (MissionPlanningException e) {
+                res.status(422) // Unprocessable Entity - semantycznie poprawny błąd
+                return JsonOutput.toJson([error: "Mission Rejected", reason: e.message])
             }
         }
 

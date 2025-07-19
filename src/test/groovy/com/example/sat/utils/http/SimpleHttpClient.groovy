@@ -6,9 +6,9 @@ import groovy.json.JsonSlurper
 class SimpleHttpClient {
     private final String serverUrl
 
-    SimpleHttpClient(String serverUrl) {
-        this.serverUrl = serverUrl
-    }
+//    SimpleHttpClient(String serverUrl) {
+//        this.serverUrl = serverUrl
+//    }
 
     private Map sendRequest(String path, String method, String authToken = null, Object body = null) {
         def url = new URL("${serverUrl}${path}")
