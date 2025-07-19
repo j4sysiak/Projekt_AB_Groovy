@@ -184,7 +184,7 @@ Nowy plik: src/test/groovy/com/example/sat/FullNetworkIntegrationSpec.groovy
 Generated groovy
 package com.example.sat
 
-import com.example.sat.fakes.HttpGroundControlClient
+import com.example.sat.utils.http.SimpleHttpClient
 import com.example.sat.fakes.SatelliteSimulator
 import com.example.sat.server.SatelliteSimulatorServer
 import spock.lang.Shared

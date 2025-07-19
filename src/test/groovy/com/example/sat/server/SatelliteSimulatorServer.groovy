@@ -1,26 +1,29 @@
 package com.example.sat.server
 
+import com.example.sat.utils.http.SimpleHttpClient
 import com.example.sat.fakes.SatelliteSimulator
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
-import spark.Spark
+import spark.Service
 
 class SatelliteSimulatorServer {
     private final SatelliteSimulator simulator
+    private final String downlinkTargetUrl
+    private Service http // Własna, prywatna instancja serwera Spark
 
-    SatelliteSimulatorServer(SatelliteSimulator simulator) {
+    SatelliteSimulatorServer(SatelliteSimulator simulator, String downlinkTargetUrl) {
         this.simulator = simulator
+        this.downlinkTargetUrl = downlinkTargetUrl
     }
 
     void start(int port) {
-        println "SERVER: Starting Satellite Simulator Server on port ${port}..."
+        println "SERVER (SAT): Starting Satellite Simulator Server on port ${port}..."
+        http = Service.ignite() // Tworzymy nową, niezależną instancję serwera
+        http.port(port)
 
-        // === POPRAWNA SKŁADNIA ===
-        Spark.port(port) // Używamy jawnego odwołania do klasy Spark
-        // ==========================
+        // Definiujemy endpointy na naszej lokalnej instancji 'http'
 
-        // POST /connect - ZMIANA: Zwracamy JSON
-        Spark.post("/connect") { req, res ->
+        http.post("/connect") { req, res ->
             res.type("application/json")
             def authToken = req.headers("Authorization")?.replace("Bearer ", "")
             try {
@@ -33,48 +36,85 @@ class SatelliteSimulatorServer {
             }
         }
 
-        // POST /command
-        Spark.post("/command") { req, res ->
+        http.post("/command") { req, res ->
             res.type("application/json")
             try {
                 def request = new JsonSlurper().parseText(req.body())
                 def responseMessage = simulator.sendCommand(request.command, request.params ?: [:])
 
+                // === KLUCZOWA ZMIANA: Bardziej inteligentne określanie statusu ===
+                // Uznajemy za sukces, jeśli odpowiedź zaczyna się od "ACK" LUB "STATUS"
+                boolean isSuccess = responseMessage.startsWith("ACK") || responseMessage.startsWith("STATUS")
+
                 def response = [
-                        status: responseMessage.startsWith("ACK") ? "ACK" : "NACK",
+                        status: isSuccess ? "ACK" : "NACK", // Zwracamy "ACK" dla obu typów sukcesu
                         message: responseMessage,
                         batteryLevel: simulator.batteryLevel
                 ]
                 return JsonOutput.toJson(response)
             } catch (Exception e) {
-                res.status(500) // Internal Server Error
+                res.status(500)
                 return JsonOutput.toJson([status: "ERROR", message: e.message])
             }
         }
 
-        // GET /downlink
-        Spark.get("/downlink") { req, res ->
+        // Endpoint do zlecania wysyłki danych do SERW1
+        http.post("/downlink") { req, res ->
             res.type("application/json")
+
+            // === NOWA LOGIKA: Health Check ===
+            println "SERVER (SAT): Performing health check on intermediate server..."
+            def intermediateServerClient = new SimpleHttpClient(downlinkTargetUrl)
+            def healthResponse = intermediateServerClient.getData("/health") // getData to GET
+
+            if (healthResponse.statusCode != 200 || healthResponse.json.status != "UP") {
+                println "SERVER (SAT): Health check FAILED for ${downlinkTargetUrl}. Aborting downlink."
+                res.status(502) // Bad Gateway
+                return JsonOutput.toJson([
+                        status: "ERROR",
+                        message: "Intermediate server is unhealthy. Downlink aborted.",
+                        healthCheckResponse: healthResponse.json
+                ])
+            }
+            println "SERVER (SAT): Health check PASSED."
+            // ===================================
+
             def photos = simulator.downlinkQueuedPhotos()
-            return JsonOutput.toJson(photos)
+            if (photos) {
+                println "SERVER (SAT): Downlinking ${photos.size()} photos to ${downlinkTargetUrl}..."
+                def response = intermediateServerClient.sendGenericPost("/ingest", photos)
+
+                if (response.statusCode == 202) {
+                    return JsonOutput.toJson([status: "OK", message: "Downlink successful."])
+                } else {
+                    res.status(502)
+                    return JsonOutput.toJson([status: "ERROR", message: "Failed to downlink data to intermediate server."])
+                }
+            }
+
+            return JsonOutput.toJson([status: "OK", message: "No data to downlink."])
         }
 
-        // POST /disconnect - ZMIANA: Zwracamy JSON
-        Spark.post("/disconnect") { req, res ->
+        http.post("/disconnect") { req, res ->
             res.type("application/json")
             simulator.disconnect()
             res.status(200)
             return JsonOutput.toJson([status: "OK", message: "Disconnected"])
         }
 
-        Spark.awaitInitialization()
-        println "SERVER: Satellite Simulator Server started on port ${Spark.port()}."
+        http.awaitInitialization()
+        println "SERVER (SAT): Satellite Simulator Server started on port ${http.port()}."
     }
 
     void stop() {
-        println "SERVER: Stopping Satellite Simulator Server..."
-        Spark.stop()
-        Spark.awaitStop()
-        println "SERVER: Server stopped."
+        if (http != null) {
+            println "SERVER (SAT): Stopping Satellite Simulator Server..."
+            http.stop()
+            http.awaitStop()
+            println "SERVER (SAT): Server stopped."
+        }
     }
+
+    // Publiczna metoda do pobierania portu, na którym serwer faktycznie wystartował
+    int getPort() { return http.port() }
 }

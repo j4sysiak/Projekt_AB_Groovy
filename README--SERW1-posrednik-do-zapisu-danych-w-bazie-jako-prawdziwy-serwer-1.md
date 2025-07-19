@@ -167,7 +167,7 @@ Nowy plik: src/test/groovy/com/example/sat/FullPipelineNetworkSpec.groovy
 Generated groovy
 package com.example.sat
 
-import com.example.sat.fakes.HttpGroundControlClient
+import com.example.sat.utils.http.SimpleHttpClient
 import com.example.sat.fakes.SatelliteSimulator
 import com.example.sat.server.IntermediateServerApp
 import com.example.sat.server.SatelliteSimulatorServer
