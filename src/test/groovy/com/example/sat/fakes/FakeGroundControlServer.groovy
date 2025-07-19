@@ -1,16 +1,14 @@
 package com.example.sat.fakes
 
-import com.example.sat.dto.CommandRequest
+
 import com.example.sat.dto.CommandResponse
-import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
-import com.example.sat.dto.TakePhotosRequest
 
 // Symuluje system naziemny, który wysyła komendy  ------>   to Satellite
 class FakeGroundControlServer {
     FakeSatelliteServer satelliteServer // "Połączenie sieciowe" do serwera satelity
 
-    FakeGroundControlServer(){
+    FakeGroundControlServer() {
         println "Tworzymy \"prawdziwy\" system naziemny"
     }
 

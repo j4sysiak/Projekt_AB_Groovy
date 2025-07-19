@@ -1,16 +1,16 @@
-package com.example.sat.fakes
+package com.example.sat.utils.http
 
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
-class HttpGroundControlClient {
+class SimpleHttpClient {
     private final String serverUrl
 
-    HttpGroundControlClient(String serverUrl) {
+    SimpleHttpClient(String serverUrl) {
         this.serverUrl = serverUrl
     }
 
-    private Map sendRequest(String path, String method, String authToken = null, Map body = null) {
+    private Map sendRequest(String path, String method, String authToken = null, Object body = null) {
         def url = new URL("${serverUrl}${path}")
         HttpURLConnection connection = (HttpURLConnection) url.openConnection()
         connection.setRequestMethod(method)
@@ -20,8 +20,9 @@ class HttpGroundControlClient {
             connection.setRequestProperty("Authorization", "Bearer ${authToken}")
         }
 
-        if (body) {
+        if (body != null) {
             connection.setRequestProperty("Content-Type", "application/json")
+            // JsonOutput.toJson() potrafi poprawnie zserializować zarówno Mapy, jak i Listy.
             def jsonBody = JsonOutput.toJson(body)
             connection.getOutputStream().write(jsonBody.getBytes("UTF-8"))
         }
@@ -29,10 +30,9 @@ class HttpGroundControlClient {
         def responseCode = connection.getResponseCode()
         def responseBody = (responseCode < 400) ? connection.getInputStream().getText("UTF-8") : connection.getErrorStream().getText("UTF-8")
 
-        // === POPRAWKA: Wracamy do poprawnej nazwy metody 'parseText' ===
         Object responseJson = [:]
         if (responseBody && (responseBody.trim().startsWith("{") || responseBody.trim().startsWith("["))) {
-            responseJson = new JsonSlurper().parseText(responseBody) // <-- POPRAWNA METODA
+            responseJson = new JsonSlurper().parseText(responseBody)
         } else {
             responseJson = [raw: responseBody]
         }
@@ -40,7 +40,8 @@ class HttpGroundControlClient {
         return [statusCode: responseCode, json: responseJson]
     }
 
-    // Wszystkie poniższe metody są już poprawne i nie wymagają zmian
+    // Metody publiczne nie wymagają zmian, bo już przekazują
+    // odpowiednie typy do (teraz elastycznej) metody sendRequest.
     Map connect(String authToken) {
         return sendRequest("/connect", "POST", authToken)
     }
@@ -53,7 +54,17 @@ class HttpGroundControlClient {
         return sendRequest("/command", "POST", null, [command: command, params: params])
     }
 
-    Map downlinkData() {
-        return sendRequest("/downlink", "GET")
+    Map getData(String path) {
+        return sendRequest(path, "GET")
+    }
+
+    Map sendGenericPost(String path, Object body) {
+        return sendRequest(path, "POST", null, body)
+    }
+
+    // === NOWA, DEDYKOWANA METODA ===
+    // Jest bardziej opisowa i nie psuje istniejących wywołań.
+    Map sendAuthenticatedPost(String path, Object body, String authToken) {
+        return sendRequest(path, "POST", authToken, body)
     }
 }
