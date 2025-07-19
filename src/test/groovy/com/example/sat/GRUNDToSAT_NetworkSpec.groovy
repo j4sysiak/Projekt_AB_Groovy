@@ -8,7 +8,7 @@ import spock.lang.Shared
 import spock.lang.Specification
 
 // Weryfikuje on bezpośrednią komunikację GRUND <-> SAT.
-class GrundToSatNetworkSpec extends Specification {
+class GRUNDToSAT_NetworkSpec extends Specification {
 
     @Shared GroundControlServerApp grundServer
     @Shared SatelliteSimulatorServer satServer

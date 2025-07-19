@@ -4,7 +4,7 @@ import com.example.sat.server.IntermediateServerApp
 import com.example.sat.utils.http.SimpleHttpClient
 import spock.lang.Specification
 
-class Server1ToGroundNetworkSpec extends Specification {
+class SERW1ToGRUND_NetworkSpec extends Specification {
 
     IntermediateServerApp intermediateServer
     SimpleHttpClient client

@@ -7,7 +7,7 @@ import spock.lang.Shared
 import spock.lang.Specification
 
 // Ten test weryfikuje tylko i wyłącznie publiczne API serwera SatelliteSimulatorServer
-class SatelliteServerApiSpec extends Specification {
+class SAT_ApiSpec extends Specification {
 
     @Shared
     SatelliteSimulatorServer server

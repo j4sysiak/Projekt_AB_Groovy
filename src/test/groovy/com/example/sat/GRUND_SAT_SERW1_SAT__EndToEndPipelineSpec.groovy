@@ -7,7 +7,7 @@ import com.example.sat.server.SatelliteSimulatorServer
 import com.example.sat.utils.http.SimpleHttpClient
 import spock.lang.Specification
 
-class EndToEndPipelineSpec extends Specification {
+class GRUND_SAT_SERW1_SAT__EndToEndPipelineSpec extends Specification {
 
     // Deklarujemy wszystkie serwery i klientów
     GroundControlServerApp grundServer
