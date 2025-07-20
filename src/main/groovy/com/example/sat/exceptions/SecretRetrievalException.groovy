@@ -1,4 +1,4 @@
-package com.example.sat
+package com.example.sat.exceptions
 
 // Dedykowany wyjątek dla problemów z pobraniem sekretu
 class SecretRetrievalException extends RuntimeException {

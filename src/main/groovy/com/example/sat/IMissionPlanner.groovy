@@ -2,6 +2,7 @@ package com.example.sat
 
 import com.example.sat.dto.MissionPlan
 import com.example.sat.dto.MissionRequest
+import com.example.sat.exceptions.MissionPlanningException
 
 interface IMissionPlanner {
     // Próbuje stworzyć plan misji na podstawie zlecenia.

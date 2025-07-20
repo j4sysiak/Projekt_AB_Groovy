@@ -4,7 +4,7 @@ import com.example.sat.fakes.SatelliteSimulator
 import com.example.sat.server.GroundControlServerApp
 import com.example.sat.server.IntermediateServerApp
 import com.example.sat.server.SatelliteSimulatorServer
-import com.example.sat.utils.http.SimpleHttpClient
+import com.example.sat.http.SimpleHttpClient
 import spock.lang.Specification
 
 class GRUND_SAT_SERW1_SAT__EndToEndPipelineSpec extends Specification {

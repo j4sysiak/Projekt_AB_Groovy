@@ -1,5 +1,9 @@
 package com.example.sat
 
+import com.example.sat.domain.AnalysisResult
+import com.example.sat.exceptions.PositionMismatchException
+import com.example.sat.exceptions.ValidationException
+
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 

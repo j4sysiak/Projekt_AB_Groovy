@@ -1,14 +1,20 @@
-package com.example.sat.utils.http
+package com.example.sat.http
 
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
-class SimpleHttpClient {
+class SimpleHttpClient implements ISatelliteApiClient {
     private final String serverUrl
 
-//    SimpleHttpClient(String serverUrl) {
-//        this.serverUrl = serverUrl
-//    }
+    SimpleHttpClient(String serverUrl) {
+        this.serverUrl = serverUrl
+    }
+
+    // Implementacja metody z interfejsu
+    @Override
+    Map uploadMissionPlan(Object plan) {
+        return sendGenericPost("/mission-plan", plan)
+    }
 
     private Map sendRequest(String path, String method, String authToken = null, Object body = null) {
         def url = new URL("${serverUrl}${path}")

@@ -236,7 +236,7 @@ Nowy plik: src/test/groovy/com/example/sat/fakes/ManualMockGroundControlRadar.gr
 
 Generated groovy
 package com.example.sat.fakes
-import com.example.sat.Coordinates
+import com.example.sat.domain.Coordinates
 import com.example.sat.IGroundControlRadar
 
 class ManualMockGroundControlRadar implements IGroundControlRadar {

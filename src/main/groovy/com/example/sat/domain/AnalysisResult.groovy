@@ -1,4 +1,4 @@
-package com.example.sat
+package com.example.sat.domain
 
 // Prosty obiekt do przechowywania wyniku analizy
 class AnalysisResult {

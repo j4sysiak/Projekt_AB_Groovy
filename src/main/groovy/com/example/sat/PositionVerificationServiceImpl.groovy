@@ -1,5 +1,8 @@
 package com.example.sat
 
+import com.example.sat.domain.Coordinates
+import com.example.sat.exceptions.PositionMismatchException
+
 class PositionVerificationServiceImpl implements IPositionVerifier {
     private final IOrbitalMechanics orbitalModel
     private final IGroundControlRadar radar

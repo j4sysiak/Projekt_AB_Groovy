@@ -2,7 +2,7 @@ package com.example.sat
 
 import com.example.sat.server.GroundControlServerApp
 import com.example.sat.server.IntermediateServerApp
-import com.example.sat.utils.http.SimpleHttpClient
+import com.example.sat.http.SimpleHttpClient
 import spock.lang.Shared
 import spock.lang.Specification
 

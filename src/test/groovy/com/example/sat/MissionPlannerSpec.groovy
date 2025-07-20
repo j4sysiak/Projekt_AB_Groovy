@@ -1,6 +1,9 @@
 package com.example.sat
 
+import com.example.sat.domain.Coordinates
+import com.example.sat.domain.SatelliteState
 import com.example.sat.dto.MissionRequest
+import com.example.sat.exceptions.MissionPlanningException
 import com.example.sat.fakes.ManualMockOrbitalMechanics
 import com.example.sat.fakes.ManualMockSatelliteStateProvider
 import spock.lang.Specification

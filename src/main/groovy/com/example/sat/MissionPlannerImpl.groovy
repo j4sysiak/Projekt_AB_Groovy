@@ -2,6 +2,7 @@ package com.example.sat
 
 import com.example.sat.dto.MissionPlan
 import com.example.sat.dto.MissionRequest
+import com.example.sat.exceptions.MissionPlanningException
 
 class MissionPlannerImpl implements IMissionPlanner {
     // Planista musi mieć dostęp do wiedzy o orbicie i stanie satelity

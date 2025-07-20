@@ -1,5 +1,7 @@
 package com.example.sat
 
+import com.example.sat.domain.Coordinates
+
 class GroundControlRadarImpl implements IGroundControlRadar {
     // W prawdziwym świecie to byłaby skomplikowana komunikacja z anteną radarową.
     // Tutaj symulujemy, że radar ma "prawdziwą" wiedzę o pozycji satelity.

@@ -1,5 +1,6 @@
 package com.example.sat
 
+import com.example.sat.exceptions.SecretRetrievalException
 import spock.lang.Specification
 
 class SecretVaultSpec extends Specification {

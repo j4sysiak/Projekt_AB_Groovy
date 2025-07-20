@@ -2,7 +2,7 @@ package com.example.sat.server
 
 import com.example.sat.fakes.FakeFileSystem
 import com.example.sat.fakes.FakeRelationalDB
-import com.example.sat.utils.http.SimpleHttpClient
+import com.example.sat.http.SimpleHttpClient
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import spark.Service

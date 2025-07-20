@@ -1,5 +1,6 @@
 package com.example.sat
 
+import com.example.sat.domain.Coordinates
 import com.example.sat.fakes.ManualMockOrbitalMechanics
 import spock.lang.Specification
 

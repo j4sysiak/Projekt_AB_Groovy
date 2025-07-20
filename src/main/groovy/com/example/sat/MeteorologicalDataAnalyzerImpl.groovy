@@ -1,5 +1,7 @@
 package com.example.sat
 
+import com.example.sat.domain.AnalysisResult
+
 class MeteorologicalDataAnalyzerImpl implements IDataAnalyzer {
     // Prosta logika: szukamy słów kluczowych w danych tekstowych
     @Override

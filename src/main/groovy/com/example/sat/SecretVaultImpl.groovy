@@ -1,5 +1,7 @@
 package com.example.sat
 
+import com.example.sat.exceptions.SecretRetrievalException
+
 // Prosta symulacja magazynu sekretów, która przechowuje dane w pamięci
 class SecretVaultImpl implements SecretVault {
     private final String vaultAddress

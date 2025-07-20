@@ -1,5 +1,5 @@
 package com.example.sat.dto
-import com.example.sat.Coordinates
+import com.example.sat.domain.Coordinates
 import groovy.transform.Canonical
 
 @Canonical
