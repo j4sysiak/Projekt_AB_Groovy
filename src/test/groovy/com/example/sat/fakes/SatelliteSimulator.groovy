@@ -30,7 +30,7 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
     String lastReceivedAuthToken
     int commandsReceived = 0
     List<String> commandHistory = []
-    // NOWY STAN: Kolejka zdjęć do wysłania
+    // STAN: Kolejka zdjęć do wysłania
     List<PhotoData> photoQueue = []
 
     SatelliteSimulator(){
@@ -133,7 +133,7 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
         }
     }
 
-    // NOWA METODA: Wysyłanie danych na ziemię
+    //METODA: Wysyłanie danych na ziemię
     List<PhotoData> downlinkQueuedPhotos() {
         if (photoQueue.isEmpty()) {
             println "SIMULATOR: No photos in queue to downlink."

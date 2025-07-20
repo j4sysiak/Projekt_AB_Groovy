@@ -7,13 +7,14 @@ import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import spark.Service
 
+//Serwer SERW1  (pośrednik pomiędzy SAT i GRUND) obsługuje Potok2
 class IntermediateServerApp {
     final FakeFileSystem fileSystem = new FakeFileSystem()
     final FakeRelationalDB database = new FakeRelationalDB()
     private Service http // Własna, prywatna instancja serwera Spark
-    // NOWE POLE: Flaga do symulowania awarii w testach
+    // POLE: Flaga do symulowania awarii w testach
     private boolean forceUnhealthy = false
-    // NOWE POLE: Klient do komunikacji z serwerem GRUND
+    // POLE: Klient do komunikacji z serwerem GRUND
     private SimpleHttpClient grundClient
 
     void start(int port, String groundControlServerUrl = null) {
@@ -27,7 +28,6 @@ class IntermediateServerApp {
 
         // Definiujemy endpointy na naszej lokalnej instancji 'http'
 
-        // === NOWY ENDPOINT: Health Check ===
         http.get("/health") { req, res ->
             res.type("application/json")
             if (forceUnhealthy) {
@@ -37,7 +37,6 @@ class IntermediateServerApp {
             res.status(200)
             return JsonOutput.toJson([status: "UP", components: [fileSystem: "OK", database: "OK"]])
         }
-        // ===================================
 
         http.post("/ingest") { req, res ->
             println "SERVER (SERW1): Receiving data package on /ingest endpoint."
@@ -75,7 +74,6 @@ class IntermediateServerApp {
             res.type("application/json")
             return JsonOutput.toJson(new ArrayList(database.getArchivedPhotos()))
         }
-        // =====================================
 
         http.awaitInitialization()
         println "SERVER (SERW1): Intermediate Server started on port ${http.port()}."
@@ -90,7 +88,7 @@ class IntermediateServerApp {
         }
     }
 
-    // NOWA METODA: Do sterowania stanem "zdrowia" w testach
+    // METODA: Do sterowania stanem "zdrowia" w testach
     void forceHealthStatus(boolean isUnhealthy) {
         this.forceUnhealthy = isUnhealthy
     }
@@ -111,7 +109,6 @@ class IntermediateServerApp {
         }
     }
 
-    // ... wewnątrz klasy IntermediateServerApp
     void resetState() {
         this.fileSystem.files.clear()
         this.database.photoTable.clear()
@@ -127,7 +124,8 @@ class IntermediateServerApp {
     boolean forwardDataToGroundControl() {
         println "SERW1: Attempting to forward archived data to Ground Control."
 
-        // === NOWA LOGIKA: Health Check ===
+        // === LOGIKA: Health Check ===
+        println "SERW1: Performing health check on Ground Control server..."
         println "SERW1: Performing health check on Ground Control server..."
         def healthResponse = grundClient.getData("/health")
         if (healthResponse.statusCode != 200 || healthResponse.json.status != "UP") {

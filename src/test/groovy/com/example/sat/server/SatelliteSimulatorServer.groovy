@@ -7,6 +7,7 @@ import groovy.json.JsonSlurper
 import spark.Service
 import com.example.sat.dto.MissionPlan
 
+//Serwer SAT
 class SatelliteSimulatorServer {
     private final SatelliteSimulator simulator
     private final String downlinkTargetUrl
