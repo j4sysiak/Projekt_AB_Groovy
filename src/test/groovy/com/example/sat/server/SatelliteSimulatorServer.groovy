@@ -1,16 +1,16 @@
 package com.example.sat.server
 
+import com.example.sat.dto.PhotoCollectionManifest
 import com.example.sat.http.SimpleHttpClient
 import com.example.sat.fakes.SatelliteSimulator
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import spark.Service
-import com.example.sat.dto.MissionPlan
 
 //Serwer SAT
 class SatelliteSimulatorServer {
     private final SatelliteSimulator simulator
-    private final String downlinkTargetUrl
+    private   String downlinkTargetUrl
     private Service http // Własna, prywatna instancja serwera Spark
 
     SatelliteSimulatorServer(SatelliteSimulator simulator, String downlinkTargetUrl) {
@@ -25,21 +25,19 @@ class SatelliteSimulatorServer {
 
         // Definiujemy endpointy na naszej lokalnej instancji 'http'
 
-        // === ENDPOINT: Do przyjmowania planów misji ===
-        http.post("/mission-plan") { req, res ->
+        // === ENDPOINT: Do przyjmowania planów misji i wysyłania manifestów
+        http.post("/mission/photo-collection") { req, res ->
             res.type("application/json")
             try {
-                // Deserializujemy cały plan z ciała zapytania
-                def plan = new MissionPlan(new JsonSlurper().parseText(req.body()))
-                simulator.storeMissionPlan(plan)
-                res.status(201) // 201 Created
-                return JsonOutput.toJson([status: "STORED", missionId: plan.missionId])
+                def manifest = new PhotoCollectionManifest(new JsonSlurper().parseText(req.body()))
+                simulator.storeMissionPlan(manifest)
+                res.status(202) // Accepted
+                return JsonOutput.toJson([status: "MANIFEST_ACCEPTED", missionId: manifest.missionId])
             } catch (Exception e) {
                 res.status(500)
                 return JsonOutput.toJson([status: "ERROR", message: e.message])
             }
         }
-        // =================================================
 
         http.post("/connect") { req, res ->
             res.type("application/json")
@@ -134,4 +132,9 @@ class SatelliteSimulatorServer {
 
     // Publiczna metoda do pobierania portu, na którym serwer faktycznie wystartował
     int getPort() { return http.port() }
+
+    // Wewnątrz klasy SatelliteSimulatorServer
+    void updateDownlinkTarget(String url) {
+        this.downlinkTargetUrl = url
+    }
 }

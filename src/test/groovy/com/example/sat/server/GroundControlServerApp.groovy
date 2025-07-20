@@ -1,17 +1,16 @@
 package com.example.sat.server
 
+import com.example.sat.dto.PhotoCollectionManifest
+import com.example.sat.dto.PhotoTask
 import com.example.sat.fakes.FakeRelationalDB
-import com.example.sat.http.ISatelliteApiClient // Używamy Twojego interfejsu
-import com.example.sat.http.SimpleHttpClient // Używamy Twojej implementacji
+import com.example.sat.http.ISatelliteApiClient
+import com.example.sat.http.SimpleHttpClient
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import spark.Service
-
 import com.example.sat.IMissionPlanner
 import com.example.sat.exceptions.MissionPlanningException
 import com.example.sat.dto.MissionRequest
-import com.example.sat.dto.MissionPlan
-
 
 // Ta klasa uruchamia i zarządza serwerem kontroli naziemnej (GRUND)
 class GroundControlServerApp {
@@ -21,16 +20,12 @@ class GroundControlServerApp {
     // Zmieniamy typ na interfejs, zgodnie z Twoją dobrą praktyką
     private ISatelliteApiClient satClient
 
-    // NOWY ZALEŻNOŚĆ: Planista Misji
+    // STAN: Pamięć na zaplanowane misje
+    // Zamiast prostych planów, przechowujemy manifesty
+    private Map<String, PhotoCollectionManifest> missionManifests = [:]
+
+    // ZALEŻNOŚĆ: Planista Misji
     private IMissionPlanner missionPlanner
-
-    // NOWY STAN: Pamięć na zaplanowane misje
-    private Map<String, MissionPlan> plannedMissions = [:]
-
-    // Wewnętrzny stan: przechowuje statusy zleconych zadań
-    private Map<String, Map> jobStatuses = [:]
-
-    private long jobIdCounter = 1
 
     // KOMPONENT: Własna "baza danych" dla systemu naziemnego
     private final FakeRelationalDB database = new FakeRelationalDB()
@@ -39,12 +34,11 @@ class GroundControlServerApp {
     private boolean forceUnhealthy = false
 
 
+    // Wewnętrzny stan: przechowuje statusy zleconych zadań
+    //private Map<String, Map> jobStatuses = [:]
 
+    //private long jobIdCounter = 1
 
-    // NOWA METODA: Do wstrzykiwania planisty w testach
-    void setMissionPlanner(IMissionPlanner planner) {
-        this.missionPlanner = planner
-    }
 
     void start(int port, String satelliteServerUrl) {
         println "SERVER (GRUND): Starting Ground Control Server on port ${port}..."
@@ -66,7 +60,7 @@ class GroundControlServerApp {
             return JsonOutput.toJson([status: "UP"])
         }
 
-        // === ENDPOINT: Do odbierania danych z SERW1 ===
+        // Endpoint /data/ingest będzie odbierał paczki z SERW1
         // ZAKTUALIZOWANY ENDPOINT: Teraz faktycznie zapisuje dane do bazy
         http.post("/data/ingest") { req, res ->
             res.type("application/json")
@@ -80,6 +74,38 @@ class GroundControlServerApp {
             res.status(202) // Accepted
             return JsonOutput.toJson([status: "ACCEPTED", receivedPhotos: photos.size()])
         }
+
+        // ENDPOINT: Do pobierania finalnych danych przez użytkownika
+        http.get("/data/photos") { req, res ->
+            res.type("application/json")
+            return JsonOutput.toJson(database.getArchivedPhotos())
+        }
+
+
+        // NOWY ENDPOINT: Do tworzenia i wysyłania manifestu
+        http.post("/missions/photo-collection") { req, res ->
+            res.type("application/json")
+            def params = new JsonSlurper().parseText(req.body())
+            int photoCount = params.photoCount
+
+            def tasks = (1..photoCount).collect { new PhotoTask() }
+            def manifestToReturn = new PhotoCollectionManifest(tasks: tasks)
+            missionManifests[manifestToReturn.missionId] = manifestToReturn
+
+            // KLUCZOWA ZMIANA: Wysyłamy ten sam obiekt, który potem zwracamy
+            def responseFromSat = satClient.sendGenericPost("/mission/photo-collection", manifestToReturn)
+
+            if (responseFromSat.statusCode == 202) {
+                res.status(202)
+                return JsonOutput.toJson(manifestToReturn)
+            } else {
+                res.status(502)
+                return JsonOutput.toJson([error: "Satellite rejected the manifest."])
+            }
+        }
+        // =====================================
+
+
 
         // ZAKTUALIZOWANY ENDPOINT /missions: teraz zapisuje plan
         http.post("/missions") { req, res ->
@@ -129,46 +155,45 @@ class GroundControlServerApp {
             return JsonOutput.toJson(plan)
         }
 
-        // ENDPOINT: Do pobierania finalnych danych przez użytkownika
-        http.get("/data/photos") { req, res ->
-            res.type("application/json")
-            return JsonOutput.toJson(database.getArchivedPhotos())
-        }
-
         http.awaitInitialization()
         println "SERVER (GRUND): Ground Control Server started on port ${http.port()}."
     }
 
-    // Publiczna metoda do aktualizacji klienta po starcie serwerów
-    // Zmieniamy typ w metodzie update, żeby pasował
-    void updateSatClient(ISatelliteApiClient  client) {
-        this.satClient = client
-    }
 
     void stop() {
         if (http != null) {
-            http.stop(); http.awaitStop()
+            http.stop();
+            http.awaitStop();
             println "SERVER (GRUND): Server stopped."
         }
     }
 
+    int getPort() {
+        return http.port()
+    }
 
-    Map getJobStatus(String jobId) { return jobStatuses[jobId] }
+    // Publiczna metoda do aktualizacji klienta po starcie serwerów
+    // Zmieniamy typ w metodzie update, żeby pasował
+    void updateSatClient(SimpleHttpClient client) {
+        this.satClient = client
+    }
+
+    // METODA: Do wstrzykiwania planisty w testach
+    void setMissionPlanner(IMissionPlanner planner) {
+        this.missionPlanner = planner
+    }
+
+    void resetState() {
+        missionManifests.clear();
+        database.photoTable.clear();
+        println "SERVER (GRUND): State has been reset."
+    }
+
+    int getDbPhotoCount() { return database.photoTable.size() }
 
     // METODA: Do sterowania stanem "zdrowia" w testach
     void forceHealthStatus(boolean isUnhealthy) {
         this.forceUnhealthy = isUnhealthy
     }
 
-    int getPort() { return http.port() }
-
-    // Metody do weryfikacji stanu w testach
-    void resetState() {
-        jobStatuses.clear()
-        jobIdCounter = 1
-        database.photoTable.clear()
-        println "SERVER (GRUND): State has been reset."
-    }
-
-    int getDbPhotoCount() { return database.photoTable.size() }
 }

@@ -2,9 +2,10 @@ package com.example.sat.fakes
 
 import com.example.sat.CommandModule
 import com.example.sat.SatelliteConnection
+import com.example.sat.dto.PhotoCollectionManifest
 import com.example.sat.dto.PhotoData
 import com.example.sat.dto.MissionPlan
-
+import com.example.sat.dto.PhotoTaskStatus
 import java.util.Locale // <-- DODAJ TEN IMPORT
 
 // Ten symulator udaje zarówno moduł komend, jak i połączenie z satelitą.
@@ -33,18 +34,52 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
     // STAN: Kolejka zdjęć do wysłania
     List<PhotoData> photoQueue = []
 
+    // NOWY STAN WEWNĘTRZNY
+    PhotoCollectionManifest activeManifest
+    Map<String, PhotoData> photoStorage = [:] // Magazyn na zrobione zdjęcia
+    final int downlinkBatchSize = 50 // Ile zdjęć można wysłać naraz
+
     SatelliteSimulator(){
         println ("konstruktor niemy of SatelliteSimulator")
     }
 
-    // Do przyjmowania i zapisywania planu misji
-    void storeMissionPlan(MissionPlan plan) {
-        if (!powerOn || batteryLevel < 1.0) {
-            throw new IllegalStateException("SIMULATOR: Insufficient power to store mission plan.")
+    // metodę do symulacji wykonania zadania
+    void executeTask(String taskId) {
+        def task = activeManifest?.tasks?.find { it.taskId == taskId }
+        if (task && task.status == com.example.sat.dto.PhotoTaskStatus.PENDING) {
+            println "SIMULATOR: Executing task ${taskId}..."
+            photoStorage[taskId] = new PhotoData(photoId: taskId, quality: "HIGH", content: "Data for ${taskId}")
+            task.status = com.example.sat.dto.PhotoTaskStatus.TAKEN_AND_QUEUED
         }
-        println "SIMULATOR: Storing mission plan ${plan.missionId}..."
-        storedMissionPlans[plan.missionId] = plan
-        batteryLevel -= 0.1 // Małe zużycie energii na zapis
+    }
+
+    // Do przyjmowania i zapisywania planu misji
+    // Ta metoda teraz przyjmuje cały manifest
+    void storeMissionPlan(PhotoCollectionManifest manifest) {
+        println "SIMULATOR: Storing photo collection manifest ${manifest.missionId}..."
+        this.activeManifest = manifest
+    }
+
+    //METODA: Wysyłanie danych na ziemię (a raczej do SERW1)
+    // ZMIANA: Downlink wysyła teraz w paczkach
+    List<PhotoData> downlinkQueuedPhotos() {
+        if (!activeManifest) return []
+
+        def queuedTasks = activeManifest.tasks.findAll { it.status == PhotoTaskStatus.TAKEN_AND_QUEUED }
+        if (queuedTasks.isEmpty()) {
+            println "SIMULATOR: No photos in queue to downlink."
+            return []
+        }
+
+        def tasksToDownlink = queuedTasks.take(downlinkBatchSize)
+        println "SIMULATOR: Downlinking a batch of ${tasksToDownlink.size()} photos..."
+
+        def photosToSend = tasksToDownlink.collect { task ->
+            task.status = PhotoTaskStatus.DOWNLINKED
+            photoStorage[task.taskId]
+        }
+
+        return photosToSend
     }
 
     // Symulacja upływu czasu i logiki wewnętrznej
@@ -52,11 +87,11 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
     void simulateTimePassage(boolean isDaylight) {
         if (isDaylight) {
             solarPanelStatus = "CHARGING"
-            batteryLevel = Math.min(100.0, batteryLevel + 10.0) // Ładujemy baterię
+            batteryLevel = Math.min(100.0, batteryLevel + 10.0)
             println "SIMULATOR: Entering daylight. Battery charging. Level: ${batteryLevel}%"
         } else {
             solarPanelStatus = "IDLE"
-            batteryLevel -= 2.0 // Podstawowe zużycie energii w nocy
+            batteryLevel -= 2.0
             println "SIMULATOR: Entering darkness. Battery discharging. Level: ${batteryLevel}%"
         }
     }
@@ -65,19 +100,10 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
     // === Zmodyfikowane metody, które zależą od nowego stanu ===
     @Override
     String fetchData(String satelliteId) {
-        if (forceFetchDataToFail) {
-            throw new RuntimeException("Forced fetch data failure for testing")
-        }
-
         if (!connected) throw new IllegalStateException("SIMULATOR: Not connected.")
-
-        if (batteryLevel < POWER_CONSUMPTION_TAKE_PHOTO + 5.0) {
-            throw new RuntimeException("SIMULATOR: Insufficient power to take and fetch photo. Battery at ${batteryLevel}%.")
-        }
-
-        if (cameraMode != "ACTIVE_IMAGING") {
-            throw new RuntimeException("SIMULATOR: Cannot fetch data, camera is in ${cameraMode} mode.")
-        }
+        if (forceFetchDataToFail) throw new RuntimeException("Forced fetch data failure for testing")
+        if (batteryLevel < POWER_CONSUMPTION_TAKE_PHOTO + 5.0) throw new RuntimeException("SIMULATOR: Insufficient power...")
+        if (cameraMode != "ACTIVE_IMAGING") throw new RuntimeException("SIMULATOR: Cannot fetch data, camera is in ${cameraMode} mode.")
 
         println "SIMULATOR: Fetching simulated meteorological data..."
         batteryLevel -= POWER_CONSUMPTION_TAKE_PHOTO
@@ -86,31 +112,19 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
 
     // === Implementacja interfejsu CommandModule ===
     @Override
-    String sendCommand(String command, Map params = [:]) {  // Dodajemy opcjonalne parametry
+    String sendCommand(String command, Map params = [:]) {
         if (!connected) throw new IllegalStateException("SIMULATOR: Not connected.")
 
         println "SIMULATOR: Received command '${command}'"
         commandHistory.add(command)
         batteryLevel -= POWER_CONSUMPTION_PER_COMMAND
 
-        if (command.contains("THRUSTER") && thrusterHealth == "FAILED") {
-            return "NACK: Command '${command}' failed. Thrusters are in FAILED state."
-        }
-        if (batteryLevel < 10.0) {
-            return "NACK: Command '${command}' refused. Critically low power: ${batteryLevel}%."
-        }
-
-        // KOMENDA: Robienie zdjęć
         if (command == "TAKE_PHOTOS") {
-            int count = params.get("numberOfPhotos", 1)
+            int count = params.get("numberOfPhotos", 1) as int
             String quality = params.get("quality", "HIGH")
-
-            if (quality != "HIGH") {
-                return "NACK: Only HIGH quality photos are supported by this firmware."
-            }
+            if (quality != "HIGH") return "NACK: Only HIGH quality photos are supported."
 
             count.times {
-                println "SIMULATOR: Taking a ${quality} quality photo..."
                 photoQueue.add(new PhotoData(quality: quality, content: "Simulated high-quality image data..."))
             }
             return "ACK: ${count} photos taken and queued for downlink."
@@ -133,17 +147,22 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
         }
     }
 
-    //METODA: Wysyłanie danych na ziemię
-    List<PhotoData> downlinkQueuedPhotos() {
-        if (photoQueue.isEmpty()) {
-            println "SIMULATOR: No photos in queue to downlink."
-            return []
+    // === PRZYWRACAMY BRAKUJĄCĄ METODĘ ===
+    void simulatePhotoTakingProcess() {
+        if (activeManifest) {
+            println "SIMULATOR: Starting photo taking process based on manifest..."
+            activeManifest.tasks.each { task ->
+                if (task.status == PhotoTaskStatus.PENDING && batteryLevel > 1.0) {
+                    println "SIMULATOR: Taking photo for task ${task.taskId}..."
+                    photoStorage[task.taskId] = new PhotoData(photoId: task.taskId, quality: "HIGH", content: "Data for ${task.taskId}")
+                    task.status = PhotoTaskStatus.TAKEN_AND_QUEUED
+                    batteryLevel -= 0.2
+                }
+            }
+            println "SIMULATOR: Photo taking process finished."
         }
-        println "SIMULATOR: Downlinking ${photoQueue.size()} photos..."
-        def photosToSend = new ArrayList<>(photoQueue)
-        photoQueue.clear() // Opróżniamy kolejkę po wysłaniu
-        return photosToSend
     }
+    // ===================================
 
     @Override
     void connect(String authToken) {
@@ -155,21 +174,22 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
     }
 
     @Override
-    boolean isConnected() {
-        return connected
-    }
+    boolean isConnected() { return connected }
 
     @Override
     void disconnect() {
         println "SIMULATOR: Disconnecting."
         this.connected = false
     }
+
     void resetState() {
         this.batteryLevel = 95.0
         this.cameraMode = "STANDBY"
         this.connected = false
         this.commandHistory = []
-        this.photoQueue = []
+        this.photoQueue = [] // Upewnijmy się, że stara kolejka też jest czyszczona
+        this.activeManifest = null
+        this.photoStorage.clear()
         this.thrusterHealth = "NOMINAL"
         this.powerOn = true
         println "SIMULATOR: State has been reset."
