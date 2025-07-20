@@ -1,6 +1,6 @@
 package com.example.sat.fakes
 import com.example.sat.IPositionVerifier
-import com.example.sat.PositionMismatchException
+import com.example.sat.exceptions.PositionMismatchException
 
 class ManualMockPositionVerifier implements IPositionVerifier {
     boolean isPositionOk = true

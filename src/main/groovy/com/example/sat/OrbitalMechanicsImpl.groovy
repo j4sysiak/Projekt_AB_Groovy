@@ -1,5 +1,7 @@
 package com.example.sat
 
+import com.example.sat.domain.Coordinates
+
 class OrbitalMechanicsImpl implements IOrbitalMechanics {
     private final long orbitPeriodMinutes
     private final long epoch = System.currentTimeMillis() // Moment "startu" orbity

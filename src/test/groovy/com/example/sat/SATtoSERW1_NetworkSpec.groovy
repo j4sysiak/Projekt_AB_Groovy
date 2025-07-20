@@ -3,10 +3,10 @@ package com.example.sat
 import com.example.sat.fakes.SatelliteSimulator
 import com.example.sat.server.IntermediateServerApp
 import com.example.sat.server.SatelliteSimulatorServer
-import com.example.sat.utils.http.SimpleHttpClient
+import com.example.sat.http.SimpleHttpClient
 import spock.lang.Specification
 
-class SatToServer1NetworkSpec extends Specification {
+class SATtoSERW1_NetworkSpec extends Specification {
 
     IntermediateServerApp intermediateServer
     SatelliteSimulatorServer satServer

@@ -1,24 +1,50 @@
 package com.example.sat.server
 
 import com.example.sat.fakes.FakeRelationalDB
-import com.example.sat.utils.http.SimpleHttpClient
+import com.example.sat.http.ISatelliteApiClient // Używamy Twojego interfejsu
+import com.example.sat.http.SimpleHttpClient // Używamy Twojej implementacji
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import spark.Service
 
+import com.example.sat.IMissionPlanner
+import com.example.sat.exceptions.MissionPlanningException
+import com.example.sat.dto.MissionRequest
+import com.example.sat.dto.MissionPlan
+
+
 // Ta klasa uruchamia i zarządza serwerem kontroli naziemnej (GRUND)
 class GroundControlServerApp {
     private Service http
-    // Klient do komunikacji z serwerem satelity
-    private SimpleHttpClient satClient
+
+    // Klient do komunikacji z serwerem satelity poprzez ISatelliteApiClient: SOLID dependency inversion
+    // Zmieniamy typ na interfejs, zgodnie z Twoją dobrą praktyką
+    private ISatelliteApiClient satClient
+
+    // NOWY ZALEŻNOŚĆ: Planista Misji
+    private IMissionPlanner missionPlanner
+
+    // NOWY STAN: Pamięć na zaplanowane misje
+    private Map<String, MissionPlan> plannedMissions = [:]
+
     // Wewnętrzny stan: przechowuje statusy zleconych zadań
     private Map<String, Map> jobStatuses = [:]
+
     private long jobIdCounter = 1
-    // NOWY KOMPONENT: Własna "baza danych" dla systemu naziemnego
+
+    // KOMPONENT: Własna "baza danych" dla systemu naziemnego
     private final FakeRelationalDB database = new FakeRelationalDB()
 
-    // NOWE POLE: Flaga do symulowania awarii w testach
+    // POLE: Flaga do symulowania awarii w testach
     private boolean forceUnhealthy = false
+
+
+
+
+    // NOWA METODA: Do wstrzykiwania planisty w testach
+    void setMissionPlanner(IMissionPlanner planner) {
+        this.missionPlanner = planner
+    }
 
     void start(int port, String satelliteServerUrl) {
         println "SERVER (GRUND): Starting Ground Control Server on port ${port}..."
@@ -27,9 +53,9 @@ class GroundControlServerApp {
         http = Service.ignite()
         http.port(port)
 
-        // Definiujemy API naszego serwera GRUND
+        // Definiujemy API naszego serwera GRUND serwera
 
-        // === NOWY ENDPOINT: Health Check ===
+        // === ENDPOINT: Health Check ===
         http.get("/health") { req, res ->
             res.type("application/json")
             if (forceUnhealthy) {
@@ -39,9 +65,8 @@ class GroundControlServerApp {
             res.status(200)
             return JsonOutput.toJson([status: "UP"])
         }
-        // ===================================
 
-        // === NOWY ENDPOINT: Do odbierania danych z SERW1 ===
+        // === ENDPOINT: Do odbierania danych z SERW1 ===
         // ZAKTUALIZOWANY ENDPOINT: Teraz faktycznie zapisuje dane do bazy
         http.post("/data/ingest") { req, res ->
             res.type("application/json")
@@ -55,51 +80,56 @@ class GroundControlServerApp {
             res.status(202) // Accepted
             return JsonOutput.toJson([status: "ACCEPTED", receivedPhotos: photos.size()])
         }
-        // ==================================================
 
-        // POST /mission/photos - endpoint do zlecania nowej misji fotograficznej
-        http.post("/mission/photos") { req, res ->
+        // ZAKTUALIZOWANY ENDPOINT /missions: teraz zapisuje plan
+        http.post("/missions") { req, res ->
             res.type("application/json")
-            def missionParams = new JsonSlurper().parseText(req.body())
-            def authToken = req.headers("Authorization")?.replace("Bearer ", "")
+            try {
+                def request = new MissionRequest(new JsonSlurper().parseText(req.body()))
 
-            println "GRUND: Received mission request: ${missionParams}"
+                // Wołamy planistę, a nie bezpośrednio klienta SAT
+                def missionPlan = missionPlanner.createPlan(request)
 
-            // 1. Nawiąż połączenie z satelitą
-            def connectResponse = satClient.connect(authToken)
-            if (connectResponse.statusCode != 200) {
-                res.status(502) // Bad Gateway
-                return JsonOutput.toJson([status: "ERROR", message: "Could not connect to satellite."])
-            }
+                // W prawdziwym systemie tutaj zapisalibyśmy plan do bazy i zakolejkowali do wysłania
+                // ZMIANA: Zapisujemy plan w pamięci serwera
+                plannedMissions[missionPlan.missionId] = missionPlan
 
-            // 2. Wyślij komendę zlecającą zrobienie zdjęć
-            def commandResponse = satClient.sendCommand("TAKE_PHOTOS", [
-                    numberOfPhotos: missionParams.photoCount,
-                    quality: missionParams.quality
-            ])
-
-            // 3. Rozłącz się z satelitą
-            satClient.disconnect()
-
-            // 4. Zapisz status zadania i odpowiedz klientowi
-            def jobId = "MISSION-${jobIdCounter++}"
-            if (commandResponse.json.status == "ACK") {
-                jobStatuses[jobId] = [status: "ACCEPTED", details: commandResponse.json.message]
                 res.status(202) // Accepted
-                return JsonOutput.toJson([jobId: jobId, status: "ACCEPTED"])
-            } else {
-                jobStatuses[jobId] = [status: "REJECTED", details: commandResponse.json.message]
-                res.status(400) // Bad Request
-                // === KLUCZOWA ZMIANA: Dodajemy brakujące pole 'details' do odpowiedzi ===
-                return JsonOutput.toJson([
-                        jobId: jobId,
-                        status: "REJECTED",
-                        details: commandResponse.json.message
-                ])
+                return JsonOutput.toJson(missionPlan)
+            } catch (MissionPlanningException e) {
+                res.status(422) // Unprocessable Entity - semantycznie poprawny błąd
+                return JsonOutput.toJson([error: "Mission Rejected", reason: e.message])
             }
         }
 
-        // NOWY ENDPOINT: Do pobierania finalnych danych przez użytkownika
+        // NOWY ENDPOINT: Do zlecania wysyłki planu (upload)
+        http.post("/missions/:missionId/upload") { req, res ->
+            def missionId = req.params(":missionId")
+            def plan = plannedMissions[missionId]
+
+            if (plan == null) {
+                res.status(404) // Not Found
+                return JsonOutput.toJson([error: "Mission plan not found."])
+            }
+
+            // === LOGIKA Z UPLOADERA JEST TERAZ TUTAJ ===
+            println "GRUND: Uploading mission plan ${plan.missionId} to satellite..."
+            // Wołamy metodę z interfejsu ISatelliteApiClient
+            def response = satClient.uploadMissionPlan(plan)
+            if (response.statusCode != 201) {
+                throw new RuntimeException("Failed to upload mission plan. Satellite responded with ${response.statusCode}.")
+            }
+            println "GRUND: Mission plan uploaded successfully."
+            // ===========================================
+
+            // Aktualizujemy status planu
+            plan.status = "UPLOADED"
+
+            res.status(200)
+            return JsonOutput.toJson(plan)
+        }
+
+        // ENDPOINT: Do pobierania finalnych danych przez użytkownika
         http.get("/data/photos") { req, res ->
             res.type("application/json")
             return JsonOutput.toJson(database.getArchivedPhotos())
@@ -110,7 +140,8 @@ class GroundControlServerApp {
     }
 
     // Publiczna metoda do aktualizacji klienta po starcie serwerów
-    void updateSatClient(SimpleHttpClient client) {
+    // Zmieniamy typ w metodzie update, żeby pasował
+    void updateSatClient(ISatelliteApiClient  client) {
         this.satClient = client
     }
 
@@ -124,7 +155,7 @@ class GroundControlServerApp {
 
     Map getJobStatus(String jobId) { return jobStatuses[jobId] }
 
-    // NOWA METODA: Do sterowania stanem "zdrowia" w testach
+    // METODA: Do sterowania stanem "zdrowia" w testach
     void forceHealthStatus(boolean isUnhealthy) {
         this.forceUnhealthy = isUnhealthy
     }

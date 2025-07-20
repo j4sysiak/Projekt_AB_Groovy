@@ -1,5 +1,7 @@
 package com.example.sat
 
+import com.example.sat.domain.Coordinates
+
 class GroundStationPassPredictorImpl implements IPassPredictor {
     private final IOrbitalMechanics orbitalMechanics
     private final Coordinates groundStationLocation

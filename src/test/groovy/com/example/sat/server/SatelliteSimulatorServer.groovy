@@ -1,10 +1,11 @@
 package com.example.sat.server
 
-import com.example.sat.utils.http.SimpleHttpClient
+import com.example.sat.http.SimpleHttpClient
 import com.example.sat.fakes.SatelliteSimulator
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import spark.Service
+import com.example.sat.dto.MissionPlan
 
 class SatelliteSimulatorServer {
     private final SatelliteSimulator simulator
@@ -22,6 +23,22 @@ class SatelliteSimulatorServer {
         http.port(port)
 
         // Definiujemy endpointy na naszej lokalnej instancji 'http'
+
+        // === ENDPOINT: Do przyjmowania planów misji ===
+        http.post("/mission-plan") { req, res ->
+            res.type("application/json")
+            try {
+                // Deserializujemy cały plan z ciała zapytania
+                def plan = new MissionPlan(new JsonSlurper().parseText(req.body()))
+                simulator.storeMissionPlan(plan)
+                res.status(201) // 201 Created
+                return JsonOutput.toJson([status: "STORED", missionId: plan.missionId])
+            } catch (Exception e) {
+                res.status(500)
+                return JsonOutput.toJson([status: "ERROR", message: e.message])
+            }
+        }
+        // =================================================
 
         http.post("/connect") { req, res ->
             res.type("application/json")
@@ -62,7 +79,7 @@ class SatelliteSimulatorServer {
         http.post("/downlink") { req, res ->
             res.type("application/json")
 
-            // === NOWA LOGIKA: Health Check ===
+            // LOGIKA: Health Check ===
             println "SERVER (SAT): Performing health check on intermediate server..."
             def intermediateServerClient = new SimpleHttpClient(downlinkTargetUrl)
             def healthResponse = intermediateServerClient.getData("/health") // getData to GET
@@ -77,7 +94,6 @@ class SatelliteSimulatorServer {
                 ])
             }
             println "SERVER (SAT): Health check PASSED."
-            // ===================================
 
             def photos = simulator.downlinkQueuedPhotos()
             if (photos) {

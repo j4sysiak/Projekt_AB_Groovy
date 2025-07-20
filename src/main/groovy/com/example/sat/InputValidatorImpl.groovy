@@ -1,5 +1,7 @@
 package com.example.sat
 
+import com.example.sat.exceptions.ValidationException
+
 class InputValidatorImpl implements InputValidator {
     private static final String ID_PREFIX = "SAT-"
     // ZMIANA: Minimalna długość to teraz 6 ("SAT-" plus co najmniej jeden znak)

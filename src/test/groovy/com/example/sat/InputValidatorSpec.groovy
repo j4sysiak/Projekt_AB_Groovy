@@ -1,5 +1,6 @@
 package com.example.sat
 
+import com.example.sat.exceptions.ValidationException
 import spock.lang.Specification
 import spock.lang.Unroll
 

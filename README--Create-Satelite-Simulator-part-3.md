@@ -4,7 +4,8 @@ W prawdziwym świecie nie można komunikować się z satelitą w dowolnym momenc
 
 Dodamy teraz dwa współpracujące ze sobą moduły, które to zasymulują:
 
-OrbitalMechanicsModule: "Fizyk" naszego systemu. Będzie wiedział, gdzie na orbicie znajduje się satelita w danym momencie.
+OrbitalMechanicsModule: "Fizyk" naszego systemu. 
+Będzie wiedział, gdzie na orbicie znajduje się satelita w danym momencie.
 
 GroundStationPassPredictor: "Kontroler lotów". Będzie używał danych z modułu mechaniki orbitalnej, aby określić, czy satelita jest obecnie w zasięgu naszej stacji naziemnej.
 
@@ -203,7 +204,7 @@ Nowy plik: src/test/groovy/com/example/sat/fakes/ManualMockOrbitalMechanics.groo
 
 Generated groovy
 package com.example.sat.fakes
-import com.example.sat.Coordinates
+import com.example.sat.domain.Coordinates
 import com.example.sat.IOrbitalMechanics
 
 class ManualMockOrbitalMechanics implements IOrbitalMechanics {

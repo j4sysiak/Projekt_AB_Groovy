@@ -2,11 +2,11 @@ package com.example.sat
 
 import com.example.sat.server.GroundControlServerApp
 import com.example.sat.server.IntermediateServerApp
-import com.example.sat.utils.http.SimpleHttpClient
+import com.example.sat.http.SimpleHttpClient
 import spock.lang.Shared
 import spock.lang.Specification
 
-class Server1ToGrundHealthCheckSpec extends Specification {
+class SERW1ToGRUND_HealthCheckSpec extends Specification {
 
     @Shared GroundControlServerApp grundServer
     @Shared IntermediateServerApp intermediateServer

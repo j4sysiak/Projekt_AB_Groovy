@@ -3,16 +3,20 @@ package com.example.sat.fakes
 import com.example.sat.CommandModule
 import com.example.sat.SatelliteConnection
 import com.example.sat.dto.PhotoData
+import com.example.sat.dto.MissionPlan
 
 import java.util.Locale // <-- DODAJ TEN IMPORT
 
 // Ten symulator udaje zarówno moduł komend, jak i połączenie z satelitą.
 class SatelliteSimulator implements SatelliteConnection, CommandModule {
 
+    // STAN: Pamięć na otrzymane plany misji
+    Map<String, MissionPlan> storedMissionPlans = [:]
+
     // Dodajmy flagę, aby móc kontrolować, kiedy fetchData ma zawieść.
     boolean forceFetchDataToFail = false
 
-    // === NOWY, DYNAMICZNY STAN WEWNĘTRZNY ===
+    // DYNAMICZNY STAN WEWNĘTRZNY ===
     double batteryLevel = 95.0 // w procentach
     String solarPanelStatus = "CHARGING" // CHARGING (dzień) lub IDLE (noc)
     String thrusterHealth = "NOMINAL" // NOMINAL, DEGRADED, FAILED
@@ -29,12 +33,21 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
     // NOWY STAN: Kolejka zdjęć do wysłania
     List<PhotoData> photoQueue = []
 
-
     SatelliteSimulator(){
         println ("konstruktor niemy of SatelliteSimulator")
     }
 
-    // === NOWA METODA: Symulacja upływu czasu i logiki wewnętrznej ===
+    // Do przyjmowania i zapisywania planu misji
+    void storeMissionPlan(MissionPlan plan) {
+        if (!powerOn || batteryLevel < 1.0) {
+            throw new IllegalStateException("SIMULATOR: Insufficient power to store mission plan.")
+        }
+        println "SIMULATOR: Storing mission plan ${plan.missionId}..."
+        storedMissionPlans[plan.missionId] = plan
+        batteryLevel -= 0.1 // Małe zużycie energii na zapis
+    }
+
+    // Symulacja upływu czasu i logiki wewnętrznej
     // Ta metoda pozwala nam dynamicznie zmieniać stan symulatora w teście.
     void simulateTimePassage(boolean isDaylight) {
         if (isDaylight) {
@@ -87,7 +100,7 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
             return "NACK: Command '${command}' refused. Critically low power: ${batteryLevel}%."
         }
 
-        // NOWA KOMENDA: Robienie zdjęć
+        // KOMENDA: Robienie zdjęć
         if (command == "TAKE_PHOTOS") {
             int count = params.get("numberOfPhotos", 1)
             String quality = params.get("quality", "HIGH")
@@ -132,7 +145,6 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
         return photosToSend
     }
 
-    // ... reszta metod (connect, isConnected, disconnect) bez zmian ...
     @Override
     void connect(String authToken) {
         if (!powerOn) throw new IllegalStateException("SIMULATOR: Cannot connect, power is off.")

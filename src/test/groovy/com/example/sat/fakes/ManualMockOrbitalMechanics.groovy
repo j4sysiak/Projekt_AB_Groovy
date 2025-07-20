@@ -1,5 +1,5 @@
 package com.example.sat.fakes
-import com.example.sat.Coordinates
+import com.example.sat.domain.Coordinates
 import com.example.sat.IOrbitalMechanics
 
 class ManualMockOrbitalMechanics implements IOrbitalMechanics {

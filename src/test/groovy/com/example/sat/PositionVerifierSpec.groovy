@@ -1,5 +1,7 @@
 package com.example.sat
 
+import com.example.sat.domain.Coordinates
+import com.example.sat.exceptions.PositionMismatchException
 import com.example.sat.fakes.ManualMockGroundControlRadar
 import com.example.sat.fakes.ManualMockOrbitalMechanics
 import spock.lang.Specification

@@ -2,12 +2,12 @@ package com.example.sat
 
 import com.example.sat.fakes.SatelliteSimulator
 import com.example.sat.server.SatelliteSimulatorServer
-import com.example.sat.utils.http.SimpleHttpClient
+import com.example.sat.http.SimpleHttpClient
 import spock.lang.Shared
 import spock.lang.Specification
 
 // Ten test weryfikuje tylko i wyłącznie publiczne API serwera SatelliteSimulatorServer
-class SatelliteServerApiSpec extends Specification {
+class SAT_ApiSpec extends Specification {
 
     @Shared
     SatelliteSimulatorServer server
