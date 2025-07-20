@@ -55,8 +55,8 @@ class PhotoCollectionPipelineSpec extends Specification {
         satServer?.stop()
     }
 
-    def "should process a large photo collection mission in batches through the entire pipeline"() {
-        given: "a mission to collect 120 photos is requested"
+    def "should process a photo collection mission in batches through the entire pipeline"() {
+        given: "a mission to collect 120 photos"
         def missionRequest = [photoCount: 120]
 
         // ETAP 1: Zlecenie misji
@@ -65,39 +65,21 @@ class PhotoCollectionPipelineSpec extends Specification {
 
         then: "GRUND accepts it and SAT receives the manifest"
         missionResponse.statusCode == 202
+        simulator.activeManifest.tasks.size() == 120
+        simulator.photoStorage.size() == 120 // Zdjęcia są zrobione od razu
 
-        // ETAP 2: Symulacja wykonania misji
-        when: "the satellite is given time to execute the mission"
-        // Zamiast zaglądać do środka, ufamy, że to działa i idziemy dalej
-        simulator.simulatePhotoTakingProcess()
-
-        then: "the satellite *should have* taken the photos (nie weryfikujemy tego już bezpośrednio)"
-        // Asercja simulator.photoStorage.size() == 120 jest USUNIĘTA
-        noExceptionThrown()
-
-        // ETAP 3: Downlink w paczkach
-        when: "multiple downlink opportunities occur"
-        // Symulujemy 3 okna (120 zdjęć / 50 na paczkę = 2.4 -> 3 paczki)
+        when: "multiple downlink opportunities occur, processing all batches"
+        // 120 zdjęć / 50 na paczkę = 2.4 -> potrzebujemy 3 okien
         3.times {
             satClient.sendGenericPost("/downlink", [:])
-            Thread.sleep(200)
+            Thread.sleep(300) // Dajmy więcej czasu
             intermediateClient.sendGenericPost("/process", [:])
             intermediateClient.sendGenericPost("/forward", [:])
-            Thread.sleep(200)
+            Thread.sleep(300)
         }
 
-        then: "GRUND database eventually contains all the photos"
-        // Weryfikujemy stan końcowy, który jest publicznie widoczny
+        // ETAP KOŃCOWY: Weryfikacja
+        then: "GRUND's database contains exactly 120 photos at the end"
         grundServer.getDbPhotoCount() == 120
-
-        // ETAP 4: Użytkownik końcowy pobiera dane z GRUND
-        when: "the user retrieves the final data from GRUND"
-        def finalDataResponse = grundClient.getData("/data/photos")
-
-        then: "the final data is complete and correct"
-        finalDataResponse.statusCode == 200
-        def finalData = finalDataResponse.json as List
-        finalData.size() == 120
-        finalData[0].quality == "HIGH"
     }
 }

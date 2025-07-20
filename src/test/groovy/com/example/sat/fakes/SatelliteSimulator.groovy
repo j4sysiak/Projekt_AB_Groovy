@@ -55,9 +55,14 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
 
     // Do przyjmowania i zapisywania planu misji
     // Ta metoda teraz przyjmuje cały manifest
+    // ZMIANA: Robimy zdjęcia OD RAZU po otrzymaniu manifestu
     void storeMissionPlan(PhotoCollectionManifest manifest) {
-        println "SIMULATOR: Storing photo collection manifest ${manifest.missionId}..."
+        println "SIMULATOR: Storing manifest and taking photos..."
         this.activeManifest = manifest
+        activeManifest.tasks.each { task ->
+            photoStorage[task.taskId] = new PhotoData(photoId: task.taskId, quality: "HIGH", content: "Data for ${task.taskId}")
+            task.status = com.example.sat.dto.PhotoTaskStatus.TAKEN_AND_QUEUED
+        }
     }
 
     //METODA: Wysyłanie danych na ziemię (a raczej do SERW1)
@@ -65,7 +70,7 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
     List<PhotoData> downlinkQueuedPhotos() {
         if (!activeManifest) return []
 
-        def queuedTasks = activeManifest.tasks.findAll { it.status == PhotoTaskStatus.TAKEN_AND_QUEUED }
+        def queuedTasks = activeManifest.tasks.findAll { it.status == com.example.sat.dto.PhotoTaskStatus.TAKEN_AND_QUEUED }
         if (queuedTasks.isEmpty()) {
             println "SIMULATOR: No photos in queue to downlink."
             return []
@@ -75,7 +80,7 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
         println "SIMULATOR: Downlinking a batch of ${tasksToDownlink.size()} photos..."
 
         def photosToSend = tasksToDownlink.collect { task ->
-            task.status = PhotoTaskStatus.DOWNLINKED
+            task.status = com.example.sat.dto.PhotoTaskStatus.DOWNLINKED // <-- KLUCZOWA ZMIANA!
             photoStorage[task.taskId]
         }
 
@@ -146,23 +151,6 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
                 return "NACK: Unknown command"
         }
     }
-
-    // === PRZYWRACAMY BRAKUJĄCĄ METODĘ ===
-    void simulatePhotoTakingProcess() {
-        if (activeManifest) {
-            println "SIMULATOR: Starting photo taking process based on manifest..."
-            activeManifest.tasks.each { task ->
-                if (task.status == PhotoTaskStatus.PENDING && batteryLevel > 1.0) {
-                    println "SIMULATOR: Taking photo for task ${task.taskId}..."
-                    photoStorage[task.taskId] = new PhotoData(photoId: task.taskId, quality: "HIGH", content: "Data for ${task.taskId}")
-                    task.status = PhotoTaskStatus.TAKEN_AND_QUEUED
-                    batteryLevel -= 0.2
-                }
-            }
-            println "SIMULATOR: Photo taking process finished."
-        }
-    }
-    // ===================================
 
     @Override
     void connect(String authToken) {
