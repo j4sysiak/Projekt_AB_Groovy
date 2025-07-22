@@ -33,6 +33,8 @@ class SATtoSERW1_NetworkSpec extends Specification {
 
     def "satellite should successfully downlink data to the intermediate server"() {
         given: "the satellite has photos in its queue"
+        simulator.resetState()
+        intermediateServer.resetState()
         simulator.photoQueue.add([photoId: "TEST_IMG_1"])
 
         when: "the downlink process is triggered"

@@ -10,25 +10,22 @@ import spock.lang.Specification
 
 class MissionPlannerSpec extends Specification {
 
-    def "should create a valid mission plan when all conditions are met"() {
-        given: "a mission planner with providers indicating a healthy and well-positioned satellite"
+    def "should create a valid manifest when all conditions are met"() {
+        given: "a mission planner with providers indicating a healthy satellite"
         def orbitalMechanics = new ManualMockOrbitalMechanics(positionToReturn: new Coordinates(latitude: 50.0, longitude: 20.0))
         def stateProvider = new ManualMockSatelliteStateProvider(stateToReturn: new SatelliteState(batteryLevel: 80.0, dataStorageAvailable: 4096))
-
         def planner = new MissionPlannerImpl(orbitalMechanics, stateProvider)
 
         def request = new MissionRequest(
-                targetCoordinates: new Coordinates(latitude: 52.0, longitude: 21.0),
-                startTimeMillis: System.currentTimeMillis() + 3600_000 // za godzinę
+                targetCoordinates: new Coordinates(latitude: 52.0, longitude: 21.0)
         )
 
         when: "a plan is created for the request"
-        def plan = planner.createPlan(request)
+        def manifest = planner.createPlan(request)
 
-        then: "the plan is created successfully with a sequence of commands"
-        plan.status == "PENDING_UPLOAD"
-        plan.commandSequence.size() == 3
-        plan.commandSequence[0].command == "ORIENT_TO_COORDS"
+        then: "the manifest is created successfully with a list of tasks"
+        manifest.status == "PLANNED"
+        manifest.tasks.size() == 5 // Zgodnie z logiką w plannerze
     }
 
     def "should reject a mission plan if satellite has insufficient power"() {

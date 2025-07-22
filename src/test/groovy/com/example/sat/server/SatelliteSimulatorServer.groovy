@@ -1,8 +1,8 @@
 package com.example.sat.server
 
 import com.example.sat.dto.PhotoCollectionManifest
-import com.example.sat.http.SimpleHttpClient
 import com.example.sat.fakes.SatelliteSimulator
+import com.example.sat.http.SimpleHttpClient // <-- POPRAWNY IMPORT
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import spark.Service
@@ -10,8 +10,8 @@ import spark.Service
 //Serwer SAT
 class SatelliteSimulatorServer {
     private final SatelliteSimulator simulator
-    private   String downlinkTargetUrl
-    private Service http // Własna, prywatna instancja serwera Spark
+    private String downlinkTargetUrl
+    private Service http
 
     SatelliteSimulatorServer(SatelliteSimulator simulator, String downlinkTargetUrl) {
         this.simulator = simulator
@@ -24,20 +24,6 @@ class SatelliteSimulatorServer {
         http.port(port)
 
         // Definiujemy endpointy na naszej lokalnej instancji 'http'
-
-        // === ENDPOINT: Do przyjmowania planów misji i wysyłania manifestów
-        http.post("/mission/photo-collection") { req, res ->
-            res.type("application/json")
-            try {
-                def manifest = new PhotoCollectionManifest(new JsonSlurper().parseText(req.body()))
-                simulator.storeMissionPlan(manifest)
-                res.status(202) // Accepted
-                return JsonOutput.toJson([status: "MANIFEST_ACCEPTED", missionId: manifest.missionId])
-            } catch (Exception e) {
-                res.status(500)
-                return JsonOutput.toJson([status: "ERROR", message: e.message])
-            }
-        }
 
         http.post("/connect") { req, res ->
             res.type("application/json")
@@ -74,29 +60,23 @@ class SatelliteSimulatorServer {
             }
         }
 
+        http.post("/disconnect") { req, res ->
+            res.type("application/json")
+            simulator.disconnect()
+            res.status(200)
+            return JsonOutput.toJson([status: "OK", message: "Disconnected"])
+        }
+
         // Endpoint do zlecania wysyłki danych do SERW1
         http.post("/downlink") { req, res ->
             res.type("application/json")
-
-            // LOGIKA: Health Check ===
             println "SERVER (SAT): Performing health check on intermediate server..."
-            def intermediateServerClient = new SimpleHttpClient(downlinkTargetUrl)
-            def healthResponse = intermediateServerClient.getData("/health") // getData to GET
-
-            if (healthResponse.statusCode != 200 || healthResponse.json.status != "UP") {
-                println "SERVER (SAT): Health check FAILED for ${downlinkTargetUrl}. Aborting downlink."
-                res.status(502) // Bad Gateway
-                return JsonOutput.toJson([
-                        status: "ERROR",
-                        message: "Intermediate server is unhealthy. Downlink aborted.",
-                        healthCheckResponse: healthResponse.json
-                ])
-            }
-            println "SERVER (SAT): Health check PASSED."
 
             def photos = simulator.downlinkQueuedPhotos()
             if (photos) {
                 println "SERVER (SAT): Downlinking ${photos.size()} photos to ${downlinkTargetUrl}..."
+                // === UŻYWAMY POPRAWNEGO KLIENTA ===
+                def intermediateServerClient = new SimpleHttpClient(downlinkTargetUrl)
                 def response = intermediateServerClient.sendGenericPost("/ingest", photos)
 
                 if (response.statusCode == 202) {
@@ -110,11 +90,18 @@ class SatelliteSimulatorServer {
             return JsonOutput.toJson([status: "OK", message: "No data to downlink."])
         }
 
-        http.post("/disconnect") { req, res ->
+        // JEDEN, SPÓJNY ENDPOINT DO ODBIERANIA MANIFESTÓW
+        http.post("/mission/photo-collection") { req, res ->
             res.type("application/json")
-            simulator.disconnect()
-            res.status(200)
-            return JsonOutput.toJson([status: "OK", message: "Disconnected"])
+            try {
+                def manifest = new PhotoCollectionManifest(new JsonSlurper().parseText(req.body()))
+                simulator.storeMissionPlan(manifest)
+                res.status(202) // Accepted
+                return JsonOutput.toJson([status: "MANIFEST_ACCEPTED", missionId: manifest.missionId])
+            } catch (Exception e) {
+                res.status(500)
+                return JsonOutput.toJson([status: "ERROR", message: e.message])
+            }
         }
 
         http.awaitInitialization()

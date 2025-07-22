@@ -36,6 +36,8 @@ class HealthCheckSpec extends Specification {
 
     def "should successfully downlink data when intermediate server is healthy"() {
         given: "the satellite has data and the intermediate server is healthy"
+        simulator.resetState()
+        intermediateServer.resetState()
         simulator.photoQueue.add([photoId: "HEALTHY-IMG"])
         intermediateServer.forceHealthStatus(false)
 

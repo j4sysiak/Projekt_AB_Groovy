@@ -137,8 +137,11 @@ class IntermediateServerApp {
 
         def photos = database.getArchivedPhotos()
         if (photos) {
-            grundClient.sendGenericPost("/data/ingest", photos)
+            // Zwracamy wynik zapytania
+            def response = grundClient.sendGenericPost("/data/ingest", photos)
+            // Zwracamy true tylko jeśli GRUND poprawnie przyjął dane
+            return response.statusCode == 202
         }
-        return true
+        return true // Jeśli nie ma nic do wysłania, to też jest sukces
     }
 }

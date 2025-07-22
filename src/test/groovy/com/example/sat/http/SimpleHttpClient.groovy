@@ -10,10 +10,10 @@ class SimpleHttpClient implements ISatelliteApiClient {
         this.serverUrl = serverUrl
     }
 
-    // Implementacja metody z interfejsu
+    // Implementacja metody z interfejsu - używa poprawnego endpointu
     @Override
     Map uploadMissionPlan(Object plan) {
-        return sendGenericPost("/mission-plan", plan)
+        return sendGenericPost("/mission/photo-collection", plan)
     }
 
     private Map sendRequest(String path, String method, String authToken = null, Object body = null) {
