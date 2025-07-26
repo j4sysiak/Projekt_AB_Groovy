@@ -107,10 +107,8 @@ class GroundControlServerApp {
     void forceHealthStatus(boolean isUnhealthy) { this.forceUnhealthy = isUnhealthy }
 
     void resetState() {
-        println "RESET before: ${database.photoTable.size()}"
-        database.photoTable.clear()
-        missionManifests.clear()
-        println "RESET after: ${database.photoTable.size()}"
+        this.database.photoTable.clear()
+        println "SERVER (GRUND): State has been reset."
     }
 
     int getDbPhotoCount() { return database.photoTable.size() }

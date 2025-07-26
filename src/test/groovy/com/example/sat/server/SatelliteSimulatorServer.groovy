@@ -99,18 +99,21 @@ class SatelliteSimulatorServer {
 
                 // 2. Stwórz pusty obiekt manifestu
                 def manifest = new PhotoCollectionManifest()
-                manifest.status = payload.status ?: "PLANNED" // przypisz co się da z payloadu
-                // missionId jest generowany automatycznie
 
-                // 3. KLUCZOWY KROK: Ręcznie przekonwertuj każdą mapę z listy na obiekt PhotoTask
+                // 3. PRZEPISZ DANE Z PAYLOADU ZAMIAST GENEROWAĆ NOWE
+                manifest.missionId = payload.missionId // <-- NAJWAŻNIEJSZA ZMIANA
+                manifest.status = payload.status ?: "PLANNED"
+
+                // 4. Ręcznie przekonwertuj każdą mapę z listy na obiekt PhotoTask
                 manifest.tasks = payload.tasks.collect { taskMap ->
                     new PhotoTask(taskMap) // Używamy konstruktora mapowego z PhotoTask!
                 }
 
-                // 4. Teraz przekaż do symulatora w pełni poprawny, otypowany obiekt
+                // 5. Teraz przekaż do symulatora w pełni poprawny, otypowany obiekt
                 simulator.storeMissionPlan(manifest)
 
                 res.status(202) // Accepted
+                // Zwróć dane z manifestu, który faktycznie został zapisany
                 return JsonOutput.toJson([status: "MANIFEST_ACCEPTED", missionId: manifest.missionId])
             } catch (Exception e) {
                 res.status(500)
