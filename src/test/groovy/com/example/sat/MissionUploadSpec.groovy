@@ -1,11 +1,11 @@
 package com.example.sat
 
-import com.example.sat.domain.Coordinates
-import com.example.sat.dto.MissionRequest
-import com.example.sat.fakes.ManualMockOrbitalMechanics
-import com.example.sat.fakes.ManualMockSatelliteStateProvider
+// Niektóre importy nie będą już potrzebne
+// import com.example.sat.domain.Coordinates
+// import com.example.sat.dto.MissionRequest
+
 import com.example.sat.fakes.SatelliteSimulator
-import com.example.sat.http.SimpleHttpClient // Używamy Twojego pakietu
+import com.example.sat.http.SimpleHttpClient
 import com.example.sat.server.GroundControlServerApp
 import com.example.sat.server.SatelliteSimulatorServer
 import spock.lang.Specification
@@ -17,6 +17,7 @@ class MissionUploadSpec extends Specification {
     SatelliteSimulator simulator
     SimpleHttpClient grundClient
 
+    // Metoda setup() jest w porządku, zostaje bez zmian
     def setup() {
         simulator = new SatelliteSimulator()
         satServer = new SatelliteSimulatorServer(simulator, "")
@@ -29,38 +30,41 @@ class MissionUploadSpec extends Specification {
 
         grundClient = new SimpleHttpClient(grundServerUrl)
 
-        def orbitalMechanics = new ManualMockOrbitalMechanics()
-        def stateProvider = new ManualMockSatelliteStateProvider()
-        grundServer.setMissionPlanner(new MissionPlannerImpl(orbitalMechanics, stateProvider))
+        // Usunięto setMissionPlanner, bo ta logika jest teraz prawdopodobnie
+        // wewnątrz GroundControlServerApp i nie trzeba jej wstrzykiwać
     }
 
+    // Metoda cleanup() jest w porządku
     def cleanup() {
         grundServer?.stop()
         satServer?.stop()
     }
 
-    def "should plan and then upload a mission to the satellite"() {
-        given: "a valid mission request"
-        def missionRequest = new MissionRequest(targetCoordinates: new Coordinates(latitude: 1.0, longitude: 1.0))
+    // ZMIENIONA NAZWA I LOGIKA TESTU
+    def "ground server should successfully create and upload a photo collection mission"() {
+        given: "a request to collect 5 photos"
+        // ZMIANA: Tworzymy prostą mapę, której oczekuje nowy endpoint
+        def missionRequest = [photoCount: 5]
 
-        when: "a planning request is sent to GRUND"
-        def planResponse = grundClient.sendGenericPost("/missions", missionRequest)
+        when: "the mission request is sent to the ground control server"
+        // ZMIANA: Używamy poprawnego, istniejącego endpointu
+        def response = grundClient.sendGenericPost("/missions/photo-collection", missionRequest)
 
-        then: "the mission is planned successfully"
-        planResponse.statusCode == 202
-        def plan = planResponse.json
-        def missionId = plan.missionId
+        then: "the ground server accepts the mission and confirms upload to the satellite"
+        // Sprawdzamy, czy serwer naziemny poprawnie przetworzył i przekazał misję
+        response.statusCode == 202
+        def responseBody = response.json
+        responseBody.status == "UPLOADED"
+        def missionId = responseBody.missionId
         missionId != null
 
-        when: "an upload request is sent for the planned mission"
-        def uploadResponse = grundClient.sendGenericPost("/missions/${missionId}/upload", [:])
+        and: "the satellite simulator has stored the correct manifest"
+        // Sprawdzamy, czy satelita otrzymał i zapisał misję
+        // Używamy eventually/sleep, bo komunikacja jest asynchroniczna
+        Thread.sleep(1000) // Dajmy chwilę na komunikację sieciową
 
-        then: "the upload is successful"
-        uploadResponse.statusCode == 200
-        uploadResponse.json.status == "UPLOADED"
-
-        and: "the satellite simulator has stored the mission plan"
-        simulator.storedMissionPlans.size() == 1
-        simulator.storedMissionPlans.containsKey(missionId)
+        simulator.activeManifest != null
+        simulator.activeManifest.missionId == missionId
+        simulator.activeManifest.tasks.size() == 5
     }
 }

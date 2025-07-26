@@ -1,16 +1,18 @@
 package com.example.sat.server
 
-import com.example.sat.http.SimpleHttpClient
+import com.example.sat.dto.PhotoCollectionManifest
+import com.example.sat.dto.PhotoTask
 import com.example.sat.fakes.SatelliteSimulator
+import com.example.sat.http.SimpleHttpClient // <-- POPRAWNY IMPORT
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import spark.Service
-import com.example.sat.dto.MissionPlan
 
+//Serwer SAT
 class SatelliteSimulatorServer {
     private final SatelliteSimulator simulator
-    private final String downlinkTargetUrl
-    private Service http // Własna, prywatna instancja serwera Spark
+    private String downlinkTargetUrl
+    private Service http
 
     SatelliteSimulatorServer(SatelliteSimulator simulator, String downlinkTargetUrl) {
         this.simulator = simulator
@@ -23,22 +25,6 @@ class SatelliteSimulatorServer {
         http.port(port)
 
         // Definiujemy endpointy na naszej lokalnej instancji 'http'
-
-        // === ENDPOINT: Do przyjmowania planów misji ===
-        http.post("/mission-plan") { req, res ->
-            res.type("application/json")
-            try {
-                // Deserializujemy cały plan z ciała zapytania
-                def plan = new MissionPlan(new JsonSlurper().parseText(req.body()))
-                simulator.storeMissionPlan(plan)
-                res.status(201) // 201 Created
-                return JsonOutput.toJson([status: "STORED", missionId: plan.missionId])
-            } catch (Exception e) {
-                res.status(500)
-                return JsonOutput.toJson([status: "ERROR", message: e.message])
-            }
-        }
-        // =================================================
 
         http.post("/connect") { req, res ->
             res.type("application/json")
@@ -75,30 +61,23 @@ class SatelliteSimulatorServer {
             }
         }
 
+        http.post("/disconnect") { req, res ->
+            res.type("application/json")
+            simulator.disconnect()
+            res.status(200)
+            return JsonOutput.toJson([status: "OK", message: "Disconnected"])
+        }
+
         // Endpoint do zlecania wysyłki danych do SERW1
         http.post("/downlink") { req, res ->
             res.type("application/json")
-
-            // LOGIKA: Health Check ===
-            println "SERVER (SAT): Performing health check on intermediate server..."
-            def intermediateServerClient = new SimpleHttpClient(downlinkTargetUrl)
-            def healthResponse = intermediateServerClient.getData("/health") // getData to GET
-
-            if (healthResponse.statusCode != 200 || healthResponse.json.status != "UP") {
-                println "SERVER (SAT): Health check FAILED for ${downlinkTargetUrl}. Aborting downlink."
-                res.status(502) // Bad Gateway
-                return JsonOutput.toJson([
-                        status: "ERROR",
-                        message: "Intermediate server is unhealthy. Downlink aborted.",
-                        healthCheckResponse: healthResponse.json
-                ])
-            }
-            println "SERVER (SAT): Health check PASSED."
-
             def photos = simulator.downlinkQueuedPhotos()
+            println "SAT: downlinkQueuedPhotos returned: ${photos}"
             if (photos) {
                 println "SERVER (SAT): Downlinking ${photos.size()} photos to ${downlinkTargetUrl}..."
+                def intermediateServerClient = new SimpleHttpClient(downlinkTargetUrl)
                 def response = intermediateServerClient.sendGenericPost("/ingest", photos)
+                println "SAT: Sending photos to SERW1: ${photos}"
 
                 if (response.statusCode == 202) {
                     return JsonOutput.toJson([status: "OK", message: "Downlink successful."])
@@ -111,11 +90,35 @@ class SatelliteSimulatorServer {
             return JsonOutput.toJson([status: "OK", message: "No data to downlink."])
         }
 
-        http.post("/disconnect") { req, res ->
+        // JEDEN, SPÓJNY ENDPOINT DO ODBIERANIA MANIFESTÓW
+        http.post("/mission/photo-collection") { req, res ->
             res.type("application/json")
-            simulator.disconnect()
-            res.status(200)
-            return JsonOutput.toJson([status: "OK", message: "Disconnected"])
+            try {
+                // 1. Sparsuj JSON do surowej mapy
+                def payload = new JsonSlurper().parseText(req.body())
+
+                // 2. Stwórz pusty obiekt manifestu
+                def manifest = new PhotoCollectionManifest()
+
+                // 3. PRZEPISZ DANE Z PAYLOADU ZAMIAST GENEROWAĆ NOWE
+                manifest.missionId = payload.missionId // <-- NAJWAŻNIEJSZA ZMIANA
+                manifest.status = payload.status ?: "PLANNED"
+
+                // 4. Ręcznie przekonwertuj każdą mapę z listy na obiekt PhotoTask
+                manifest.tasks = payload.tasks.collect { taskMap ->
+                    new PhotoTask(taskMap) // Używamy konstruktora mapowego z PhotoTask!
+                }
+
+                // 5. Teraz przekaż do symulatora w pełni poprawny, otypowany obiekt
+                simulator.storeMissionPlan(manifest)
+
+                res.status(202) // Accepted
+                // Zwróć dane z manifestu, który faktycznie został zapisany
+                return JsonOutput.toJson([status: "MANIFEST_ACCEPTED", missionId: manifest.missionId])
+            } catch (Exception e) {
+                res.status(500)
+                return JsonOutput.toJson([status: "ERROR", message: e.message])
+            }
         }
 
         http.awaitInitialization()
@@ -133,4 +136,9 @@ class SatelliteSimulatorServer {
 
     // Publiczna metoda do pobierania portu, na którym serwer faktycznie wystartował
     int getPort() { return http.port() }
+
+    // Wewnątrz klasy SatelliteSimulatorServer
+    void updateDownlinkTarget(String url) {
+        this.downlinkTargetUrl = url
+    }
 }

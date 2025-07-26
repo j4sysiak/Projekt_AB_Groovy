@@ -1,5 +1,6 @@
 package com.example.sat.fakes
 
+import com.example.sat.dto.PhotoData
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
@@ -23,13 +24,20 @@ class IntermediateServer {
     void archiveFilesToDatabase() {
         println "SERW1: Starting archiving process."
         def files = fileSystem.readAllFiles()
-        files.each { fileName, jsonContent ->
+        files.each { entry ->
+            def fileName = entry.key
+            def jsonContent = entry.value
+
+            // Reszta Twojej logiki pozostaje bez zmian
             def photos = new JsonSlurper().parseText(jsonContent)
             photos.each { photoMap ->
-                // Zapisujemy każdy obiekt "zdjęcia" jako osobny wiersz w bazie
-                database.insertPhoto(photoMap)
+                // 1. Stwórz prawdziwy obiekt PhotoData z mapy
+                def photoObject = new PhotoData(photoMap)
+
+                // 2. Wstaw do bazy poprawny obiekt
+                database.insertPhoto(photoObject)
             }
-            fileSystem.deleteFile(fileName) // Usuwamy plik po zarchiwizowaniu
+            fileSystem.deleteFile(fileName)
         }
     }
 
