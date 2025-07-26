@@ -68,8 +68,6 @@ class SimpleHttpClient implements ISatelliteApiClient {
         return sendRequest(path, "POST", null, body)
     }
 
-    // === NOWA, DEDYKOWANA METODA ===
-    // Jest bardziej opisowa i nie psuje istniejących wywołań.
     Map sendAuthenticatedPost(String path, Object body, String authToken) {
         return sendRequest(path, "POST", authToken, body)
     }

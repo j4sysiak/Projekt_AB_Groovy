@@ -4,6 +4,6 @@ import groovy.transform.Canonical
 
 @Canonical
 class PhotoTask {
-    String taskId = "TASK_" + System.nanoTime()
-    PhotoTaskStatus status = PhotoTaskStatus.PENDING
+     String taskId = "TASK_" + System.nanoTime()
+     PhotoTaskStatus status = PhotoTaskStatus.PENDING
 }

@@ -1,5 +1,6 @@
 package com.example.sat.server
 
+import com.example.sat.dto.PhotoData
 import com.example.sat.fakes.FakeFileSystem
 import com.example.sat.fakes.FakeRelationalDB
 import com.example.sat.http.SimpleHttpClient
@@ -9,6 +10,8 @@ import spark.Service
 
 //Serwer SERW1  (pośrednik pomiędzy SAT i GRUND) obsługuje Potok2
 class IntermediateServerApp {
+    private boolean unhealthy = false
+
     final FakeFileSystem fileSystem = new FakeFileSystem()
     final FakeRelationalDB database = new FakeRelationalDB()
     private Service http // Własna, prywatna instancja serwera Spark
@@ -30,6 +33,7 @@ class IntermediateServerApp {
 
         http.get("/health") { req, res ->
             res.type("application/json")
+            println "SERVER (SERW1): Jesteś w Endpoint /health"
             if (forceUnhealthy) {
                 res.status(503) // Service Unavailable
                 return JsonOutput.toJson([status: "DOWN", components: [database: "TIMEOUT"]])
@@ -39,25 +43,32 @@ class IntermediateServerApp {
         }
 
         http.post("/ingest") { req, res ->
+            res.type("application/json")
+            println "SERVER (SERW1): Jesteś w Endpoint /ingest"
+            if (this.unhealthy) {
+                println "SERVER (SERW1): Rejected data on /ingest due to UNHEALTHY state."
+                res.status(503)
+                return JsonOutput.toJson([status: "UNAVAILABLE", message: "Intermediate server is unhealthy"])
+            }
             println "SERVER (SERW1): Receiving data package on /ingest endpoint."
             def jsonPayload = req.body()
-
             def fileName = "downlink_package_${System.currentTimeMillis()}.json"
             fileSystem.saveFile(fileName, jsonPayload)
-
             res.status(202) // Accepted
             return JsonOutput.toJson([status: "ACCEPTED", message: "Data package received and stored as ${fileName}"])
         }
 
         http.post("/process") { req, res ->
+            res.type("application/json")
+            println "SERVER (SERW1): Jesteś w Endpoint /process"
             archiveFilesToDatabase()
             res.status(200)
             return JsonOutput.toJson([status: "OK", archivedCount: database.photoTable.size()])
         }
 
-        // ZMIANA: Endpoint /data jest już niepotrzebny, bo SERW1 będzie aktywnie wysyłał dane
-        // Zastępujemy go endpointem /forward
         http.post("/forward") { req, res ->
+            res.type("application/json")
+            println "SERVER (SERW1): Jesteś w Endpoint /forward"
             boolean success = forwardDataToGroundControl()
             res.type("application/json")
             if (success) {
@@ -69,9 +80,9 @@ class IntermediateServerApp {
             }
         }
 
-        // === PRZYWRACAMY BRAKUJĄCY ENDPOINT ===
         http.get("/data") { req, res ->
             res.type("application/json")
+            println "SERVER (SERW1): Jesteś w Endpoint /data"
             return JsonOutput.toJson(new ArrayList(database.getArchivedPhotos()))
         }
 
@@ -89,8 +100,8 @@ class IntermediateServerApp {
     }
 
     // METODA: Do sterowania stanem "zdrowia" w testach
-    void forceHealthStatus(boolean isUnhealthy) {
-        this.forceUnhealthy = isUnhealthy
+    void forceHealthStatus(boolean status) {
+        this.unhealthy = status
     }
 
     // Publiczna metoda do pobierania portu
@@ -100,10 +111,18 @@ class IntermediateServerApp {
     private void archiveFilesToDatabase() {
         println "SERVER (SERW1): Starting archiving process."
         def files = fileSystem.readAllFiles()
-        files.each { fileName, jsonContent ->
+        files.each { entry ->
+            def fileName = entry.key
+            def jsonContent = entry.value
+
+            // Reszta Twojej logiki pozostaje bez zmian
             def photos = new JsonSlurper().parseText(jsonContent)
             photos.each { photoMap ->
-                database.insertPhoto(photoMap)
+                // 1. Stwórz prawdziwy obiekt PhotoData z mapy
+                def photoObject = new PhotoData(photoMap)
+
+                // 2. Wstaw do bazy poprawny obiekt
+                database.insertPhoto(photoObject)
             }
             fileSystem.deleteFile(fileName)
         }
@@ -120,12 +139,8 @@ class IntermediateServerApp {
     List<Map> getDbPhotos() { return database.getArchivedPhotos() }
     int getFileSystemFileCount() { return fileSystem.files.size() }
 
-    // ZMIENIAMY METODĘ na publiczną i zwracającą status
     boolean forwardDataToGroundControl() {
         println "SERW1: Attempting to forward archived data to Ground Control."
-
-        // === LOGIKA: Health Check ===
-        println "SERW1: Performing health check on Ground Control server..."
         println "SERW1: Performing health check on Ground Control server..."
         def healthResponse = grundClient.getData("/health")
         if (healthResponse.statusCode != 200 || healthResponse.json.status != "UP") {
@@ -133,15 +148,20 @@ class IntermediateServerApp {
             return false // Przerywamy operację
         }
         println "SERW1: Health check PASSED."
-        // ===================================
-
         def photos = database.getArchivedPhotos()
         if (photos) {
-            // Zwracamy wynik zapytania
             def response = grundClient.sendGenericPost("/data/ingest", photos)
-            // Zwracamy true tylko jeśli GRUND poprawnie przyjął dane
-            return response.statusCode == 202
+            if (response.statusCode == 202) {
+                // SUKCES! Wyczyść lokalną bazę, bo dane zostały przekazane.
+                println "SERVER (SERW1): Forwarding successful. Clearing local database."
+                database.photoTable.clear() // Zakładając, że tak czyścisz swoją FakeRelationalDB
+                return true
+            } else {
+                // BŁĄD! Nie czyść bazy, spróbujemy wysłać ponownie później.
+                println "SERVER (SERW1): Forwarding failed. Data remains in local database."
+                return false
+            }
         }
-        return true // Jeśli nie ma nic do wysłania, to też jest sukces
+        return true // Nie było nic do wysłania.
     }
 }

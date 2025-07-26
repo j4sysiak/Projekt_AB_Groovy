@@ -1,6 +1,7 @@
 package com.example.sat.server
 
 import com.example.sat.dto.PhotoCollectionManifest
+import com.example.sat.dto.PhotoTask
 import com.example.sat.fakes.SatelliteSimulator
 import com.example.sat.http.SimpleHttpClient // <-- POPRAWNY IMPORT
 import groovy.json.JsonOutput
@@ -70,14 +71,13 @@ class SatelliteSimulatorServer {
         // Endpoint do zlecania wysyłki danych do SERW1
         http.post("/downlink") { req, res ->
             res.type("application/json")
-            println "SERVER (SAT): Performing health check on intermediate server..."
-
             def photos = simulator.downlinkQueuedPhotos()
+            println "SAT: downlinkQueuedPhotos returned: ${photos}"
             if (photos) {
                 println "SERVER (SAT): Downlinking ${photos.size()} photos to ${downlinkTargetUrl}..."
-                // === UŻYWAMY POPRAWNEGO KLIENTA ===
                 def intermediateServerClient = new SimpleHttpClient(downlinkTargetUrl)
                 def response = intermediateServerClient.sendGenericPost("/ingest", photos)
+                println "SAT: Sending photos to SERW1: ${photos}"
 
                 if (response.statusCode == 202) {
                     return JsonOutput.toJson([status: "OK", message: "Downlink successful."])
@@ -94,8 +94,22 @@ class SatelliteSimulatorServer {
         http.post("/mission/photo-collection") { req, res ->
             res.type("application/json")
             try {
-                def manifest = new PhotoCollectionManifest(new JsonSlurper().parseText(req.body()))
+                // 1. Sparsuj JSON do surowej mapy
+                def payload = new JsonSlurper().parseText(req.body())
+
+                // 2. Stwórz pusty obiekt manifestu
+                def manifest = new PhotoCollectionManifest()
+                manifest.status = payload.status ?: "PLANNED" // przypisz co się da z payloadu
+                // missionId jest generowany automatycznie
+
+                // 3. KLUCZOWY KROK: Ręcznie przekonwertuj każdą mapę z listy na obiekt PhotoTask
+                manifest.tasks = payload.tasks.collect { taskMap ->
+                    new PhotoTask(taskMap) // Używamy konstruktora mapowego z PhotoTask!
+                }
+
+                // 4. Teraz przekaż do symulatora w pełni poprawny, otypowany obiekt
                 simulator.storeMissionPlan(manifest)
+
                 res.status(202) // Accepted
                 return JsonOutput.toJson([status: "MANIFEST_ACCEPTED", missionId: manifest.missionId])
             } catch (Exception e) {

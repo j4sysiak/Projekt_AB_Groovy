@@ -1,11 +1,12 @@
 package com.example.sat
 
 import com.example.sat.fakes.SatelliteSimulator
+import com.example.sat.http.SimpleHttpClient
 import com.example.sat.server.GroundControlServerApp
 import com.example.sat.server.IntermediateServerApp
 import com.example.sat.server.SatelliteSimulatorServer
-import com.example.sat.http.SimpleHttpClient
 import spock.lang.Specification
+import com.example.sat.dto.PhotoTaskStatus
 
 class PhotoCollectionPipelineSpec extends Specification {
 
@@ -22,10 +23,8 @@ class PhotoCollectionPipelineSpec extends Specification {
     def setup() {
         simulator = new SatelliteSimulator()
 
-        // === POPRAWIONA KOLEJNOŚĆ ===
-
         // 1. Uruchom serwer SAT - nie zależy od niczego
-        satServer = new SatelliteSimulatorServer(simulator, "") // Downlink target ustawimy później
+        satServer = new SatelliteSimulatorServer(simulator, "")
         satServer.start(0)
         def satServerUrl = "http://localhost:${satServer.getPort()}"
         satClient = new SimpleHttpClient(satServerUrl)
@@ -35,6 +34,7 @@ class PhotoCollectionPipelineSpec extends Specification {
         grundServer.start(0, satServerUrl)
         def grundServerUrl = "http://localhost:${grundServer.getPort()}"
         grundClient = new SimpleHttpClient(grundServerUrl)
+        grundServer.resetState()
 
         // 3. Uruchom serwer SERW1 - zależy od GRUND
         intermediateServer = new IntermediateServerApp()
@@ -42,10 +42,10 @@ class PhotoCollectionPipelineSpec extends Specification {
         def intermediateServerUrl = "http://localhost:${intermediateServer.getPort()}"
         intermediateClient = new SimpleHttpClient(intermediateServerUrl)
 
-        // 4. Zaktualizuj SAT o poprawny adres SERW1
+        // 4. Skonfiguruj SAT z poprawnym celem downlink
         satServer.updateDownlinkTarget(intermediateServerUrl)
 
-        // Czekamy, aż wszystko się ustabilizuje
+        // Czekamy na stabilizację
         Thread.sleep(1500)
     }
 
@@ -59,27 +59,73 @@ class PhotoCollectionPipelineSpec extends Specification {
         given: "a mission to collect 120 photos"
         def missionRequest = [photoCount: 120]
 
-        // ETAP 1: Zlecenie misji
+
+
         when: "the mission is submitted to GRUND"
         def missionResponse = grundClient.sendGenericPost("/missions/photo-collection", missionRequest)
 
         then: "GRUND accepts it and SAT receives the manifest"
         missionResponse.statusCode == 202
-        simulator.activeManifest.tasks.size() == 120
-        simulator.photoStorage.size() == 120 // Zdjęcia są zrobione od razu
+        assert simulator.activeManifest?.tasks?.size() == 120
 
-        when: "multiple downlink opportunities occur, processing all batches"
-        // 120 zdjęć / 50 na paczkę = 2.4 -> potrzebujemy 3 okien
-        3.times {
-            satClient.sendGenericPost("/downlink", [:])
-            Thread.sleep(300) // Dajmy więcej czasu
-            intermediateClient.sendGenericPost("/process", [:])
-            intermediateClient.sendGenericPost("/forward", [:])
-            Thread.sleep(300)
+
+
+        when: "the satellite takes all the photos"
+        simulator.simulatePhotoTakingProcess()
+
+        then: "photo storage contains all photos"
+        assert simulator.photoStorage.size() == 120
+
+        // --- DIAGNOSTYKA ---
+        println "----------------- START DIAGNOSTYKI -----------------"
+        def firstTask = simulator.activeManifest.tasks.first()
+        println "DEBUG: Zawartość pierwszego zadania: " + firstTask
+
+        def statusValue = firstTask.status
+        println "DEBUG: Wartość w 'it.status': " + statusValue
+        println "DEBUG: Typ wartości w 'it.status': " + statusValue.getClass().getName()
+        println "DEBUG: Typ stałej Enum, z którą porównujemy: " + PhotoTaskStatus.TAKEN_AND_QUEUED.getClass().getName()
+
+        // Sprawdzamy porównanie dla JEDNEGO elementu
+        boolean comparisonResult = (statusValue == PhotoTaskStatus.TAKEN_AND_QUEUED)
+        println "DEBUG: Wynik porównania (statusValue == PhotoTaskStatus.TAKEN_AND_QUEUED): " + comparisonResult
+        println "------------------ KONIEC DIAGNOSTYKI ------------------"
+
+        Thread.sleep(2000)
+
+        // 1. Stwórz pustą listę na przefiltrowane wyniki
+        def filteredTasks = []
+
+        // 2. Przejdź przez wszystkie zadania z manifestu
+        for (def task in simulator.activeManifest.tasks) {
+            // 3. Sprawdź warunek dla każdego zadania
+            if (task.status == PhotoTaskStatus.TAKEN_AND_QUEUED) {
+                // 4. Jeśli warunek jest spełniony, dodaj zadanie do nowej listy
+                filteredTasks.add(task)
+            }
         }
 
-        // ETAP KOŃCOWY: Weryfikacja
+        // 5. Pobierz rozmiar przefiltrowanej listy
+        def numberOfTasksWithCorrectStatus = filteredTasks.size()
+
+        // 6. Wykonaj asercję
+        assert numberOfTasksWithCorrectStatus == 120
+
+
+
+
+        
+        when: "three downlink opportunities occur and data is processed"
+        3.times {
+            satClient.sendGenericPost("/downlink", [:])
+            Thread.sleep(1300)
+            intermediateClient.sendGenericPost("/process", [:])
+            intermediateClient.sendGenericPost("/forward", [:])
+            Thread.sleep(1300)
+        }
+
         then: "GRUND's database contains exactly 120 photos at the end"
-        grundServer.getDbPhotoCount() == 120
+        Thread.sleep(3000)
+        assert grundServer.getDbPhotoCount() == 120
     }
 }

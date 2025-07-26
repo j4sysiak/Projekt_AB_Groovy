@@ -21,15 +21,20 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
     // === NOWA, SPÓJNA LOGIKA ZARZĄDZANIA MISJAMI ===
     PhotoCollectionManifest activeManifest
     Map<String, PhotoData> photoStorage = [:]
-    final int downlinkBatchSize = 50
+    final int downlinkBatchSize = 40
 
 
-    // === METODY PUBLICZNE ===
-    // Ta metoda TYLKO zapisuje plan.
     void storeMissionPlan(PhotoCollectionManifest manifest) {
         println "SIMULATOR: Storing photo collection manifest ${manifest.missionId}..."
+
+        // Ustawiamy wszystkie zadania na status PENDING w momencie zapisywania manifestu
+        manifest.tasks.each { task ->
+            task.status = PhotoTaskStatus.PENDING
+        }
         this.activeManifest = manifest
     }
+
+
 
     // Ta metoda TYLKO robi zdjęcia na podstawie zapisanego planu.
     void simulatePhotoTakingProcess() {
@@ -37,11 +42,15 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
             println "SIMULATOR: Starting photo taking process..."
             activeManifest.tasks.each { task ->
                 if (task.status == PhotoTaskStatus.PENDING && batteryLevel > 0.2) {
-                    photoStorage[task.taskId] = new PhotoData(photoId: task.taskId, quality: "HIGH", content: "Data for ${task.taskId}")
+                    photoStorage[task.taskId] = new PhotoData(
+                            photoId: task.taskId,
+                            quality: "HIGH",
+                            content: "Data for ${task.taskId}"
+                    )
                     task.status = PhotoTaskStatus.TAKEN_AND_QUEUED
-                    batteryLevel -= 0.2
                 }
             }
+            println "PHOTO STORAGE after shooting: ${photoStorage.keySet()}"
             println "SIMULATOR: Photo taking process finished."
         }
     }
@@ -50,7 +59,8 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
     List<PhotoData> downlinkQueuedPhotos() {
         if (!activeManifest) return []
 
-        def queuedTasks = activeManifest.tasks.findAll { it.status == PhotoTaskStatus.TAKEN_AND_QUEUED }
+        def queuedTasks = activeManifest.tasks
+                .findAll { it.status == PhotoTaskStatus.TAKEN_AND_QUEUED }
         if (queuedTasks.isEmpty()) return []
 
         def tasksToDownlink = queuedTasks.take(downlinkBatchSize)
@@ -62,8 +72,6 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
         }
         return photosToSend
     }
-
-    // === IMPLEMENTACJA INTERFEJSÓW ===
 
     @Override
     String sendCommand(String command, Map params = [:]) {
