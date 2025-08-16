@@ -196,8 +196,6 @@ class GroundControlServerApp {
 
     int getDbPhotoCount() { return database.photoTable.size() }
 
-// Wklej te metody do klasy GroundControlServerApp
-
     /**
     * Sprawdza, czy misja jest zakończona.
     * Porównuje oczekiwaną liczbę zadań z manifestu z liczbą zdjęć
