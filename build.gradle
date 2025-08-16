@@ -34,6 +34,8 @@ dependencies {
         // Wykluczamy przechodnią zależność do org.codehaus.groovy
         exclude group: 'org.codehaus.groovy', module: 'groovy'
     }
+
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.9.3'
 }
 
 test {

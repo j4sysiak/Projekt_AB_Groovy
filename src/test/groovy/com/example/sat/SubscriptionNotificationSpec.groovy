@@ -1,24 +1,27 @@
 // src/test/groovy/com/example/sat/SubscriptionNotificationSpec.groovy
 package com.example.sat
 
+import com.example.sat.dto.PhotoCollectionManifest
+import com.example.sat.dto.PhotoTask
+import com.example.sat.dto.PhotoTaskStatus
 import com.example.sat.dto.SubscriptionRequest
 import com.example.sat.http.SimpleHttpClient
 import com.example.sat.server.GroundControlServerApp
 import groovy.json.JsonSlurper
+import okhttp3.mockwebserver.MockResponse      // <-- NOWY IMPORT
+import okhttp3.mockwebserver.MockWebServer      // <-- NOWY IMPORT
 import spock.lang.Shared
 import spock.lang.Specification
-import static java.util.concurrent.TimeUnit.SECONDS
-import static org.awaitility.Awaitility.await
+import java.util.concurrent.TimeUnit           // <-- NOWY IMPORT
 
 class SubscriptionNotificationSpec extends Specification {
 
     @Shared GroundControlServerApp grundServer
     @Shared SimpleHttpClient grundClient
 
-    // Nasz fałszywy serwer, który będzie udawał system zewnętrzny
-    @Shared GroundControlServerApp webhookReceiverServer
-    // Lista powiadomień, które otrzymał nasz fałszywy serwer
-    @Shared List<Map> receivedNotifications = []
+    // ZMIANA: Zamiast drugiej instancji naszej aplikacji, używamy dedykowanego MockWebServer
+    @Shared MockWebServer webhookReceiverServer
+
 
     def setupSpec() {
         // 1. Uruchom serwer GRUND
@@ -26,65 +29,68 @@ class SubscriptionNotificationSpec extends Specification {
         grundServer.start(0, "") // Nie potrzebuje satelity
         grundClient = new SimpleHttpClient("http://localhost:${grundServer.getPort()}")
 
-        // 2. Uruchom serwer, który będzie odbiorcą webhooka
-        webhookReceiverServer = new GroundControlServerApp()
-
-        // === POPRAWIONA KOLEJNOŚĆ ===
-        // NAJPIERW URUCHOM SERWER, żeby pole 'http' zostało zainicjalizowane
-        webhookReceiverServer.start(0, "")
-
-        // TERAZ, GDY SERWER DZIAŁA, A 'http' NIE JEST JUŻ NULL, MOŻESZ DODAWAĆ ENDPOINTY
-        webhookReceiverServer.http.post("/webhook-endpoint") { req, res ->
-            println "WEBHOOK_RECEIVER: Received a notification!"
-            def payload = new JsonSlurper().parseText(req.body())
-            receivedNotifications.add(payload)
-            res.status(200)
-            return "OK"
-        }
+        // 2. Stwórz i uruchom MockWebServer
+        webhookReceiverServer = new MockWebServer()
+        webhookReceiverServer.start() // Uruchomi się na losowym, wolnym porcie
     }
 
     def cleanupSpec() {
         grundServer?.stop()
-        webhookReceiverServer?.stop()
+        // ZMIANA: Zamykamy MockWebServer za pomocą jego metody shutdown()
+        webhookReceiverServer?.shutdown()
     }
 
     def cleanup() {
         grundServer.resetState()
-        receivedNotifications.clear()
+        // Nie musimy już czyścić listy, bo MockWebServer sam zarządza stanem
     }
 
     def "should receive a notification when a subscribed mission is completed"() {
         given: "a mission is planned and a subscription is created"
-        // Symulujemy, że misja M-123 oczekuje na 1 zdjęcie
-        def missionManifest = [tasks: [[taskId: 'T1']]]
+        // "Programujemy" odpowiedź naszego fałszywego serwera.
+        // Mówimy mu: "Na następne żądanie, które otrzymasz, odpowiedz statusem 200 OK".
+        webhookReceiverServer.enqueue(new MockResponse().setResponseCode(200).setBody("Notification received"))
+
+        // Przygotowanie danych w grundServer - bez zmian
+        def testTask = new PhotoTask(taskId: 'T1', status: PhotoTaskStatus.PENDING)
+        def missionManifest = new PhotoCollectionManifest(
+                missionId: 'M-123',
+                tasks: [testTask],
+                status: "UPLOADED"
+        )
         grundServer.missionManifests['M-123'] = missionManifest
 
-        // Tworzymy subskrypcję na tę misję
-        def subRequest = new SubscriptionRequest (
+        // Tworzymy subskrypcję, podając adres URL naszego MockWebServer
+        def subRequest = new SubscriptionRequest(
                 missionId: 'M-123',
                 eventType: 'MISSION_COMPLETED',
-                callbackUrl: "http://localhost:${webhookReceiverServer.getPort()}/webhook-endpoint"
+                // ZMIANA: Używamy metody .url(), aby uzyskać pełny adres MockWebServer
+                callbackUrl: webhookReceiverServer.url("/webhook-endpoint").toString()
         )
         grundClient.sendGenericPost("/subscriptions", subRequest)
 
         when: "the final data for the mission arrives at ground control"
-        def finalPhotoData = [
-                [
-                        missionId: 'M-123',
-                        photoId: 'P1',
-                        content: 'Test photo content',
-                        timestamp: System.currentTimeMillis(), // Musimy dostarczyć timestamp
-                        quality: 98                          // Musimy dostarczyć quality
-                ]
-        ]
+        // Dane testowe - bez zmian, ale upewnijmy się, że są kompletne
+        def finalPhotoData = [[
+                                      missionId: 'M-123',
+                                      photoId: 'T1',
+                                      content: 'Test content',
+                                      timestamp: System.currentTimeMillis(),
+                                      quality: 99
+                              ]]
         grundClient.sendGenericPost("/data/ingest", finalPhotoData)
 
-        then: "the webhook receiver gets a notification"
-        // Czekamy maksymalnie 5 sekund, bo powiadomienie jest wysyłane asynchronicznie
-        await().atMost(5, SECONDS).until { receivedNotifications.size() == 1 }
+        then: "the webhook receiver gets a correct POST request"
+        // ZMIANA: Zamiast Awaitility, używamy wbudowanej metody MockWebServer,
+        // która czeka na żądanie (z timeoutem dla bezpieczeństwa).
+        def receivedRequest = webhookReceiverServer.takeRequest(5, TimeUnit.SECONDS)
 
-        and: "the notification payload is correct"
-        def notification = receivedNotifications.first()
+        and: "the received request has correct properties"
+        receivedRequest != null // Upewniamy się, że żądanie w ogóle dotarło
+        receivedRequest.method == "POST"
+        receivedRequest.path == "/webhook-endpoint"
+
+        def notification = new JsonSlurper().parseText(receivedRequest.getBody().readUtf8())
         notification.eventType == "MISSION_COMPLETED"
         notification.data.missionId == "M-123"
         notification.data.photoCount == 1
