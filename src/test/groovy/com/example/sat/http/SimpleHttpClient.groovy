@@ -24,6 +24,7 @@ class SimpleHttpClient implements ISatelliteApiClient, INotificationClient {
     // Implementacja metody z interfejsu INotificationClient
     @Override
     void send(String url, Object payload) {
+        // callbackUrl to oczywiście "http://.../webhook".
         // Po prostu opakowuje sendGenericPost, aby spełnić kontrakt interfejsu
         sendGenericPost(url, payload)
     }

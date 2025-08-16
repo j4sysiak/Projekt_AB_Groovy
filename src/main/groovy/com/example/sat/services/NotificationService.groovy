@@ -29,13 +29,13 @@ class NotificationService {
         println "NOTIFICATION_SERVICE: Found ${subscriptions.size()} subscriber(s). Preparing notifications..."
         subscriptions.each { sub ->
             def callbackUrl = sub.callbackUrl
-            def payload = new NotificationPayload(
+            def payload = new NotificationPayload (
                     eventType: eventType,
                     data: [missionId: missionId] + eventData // Łączymy dane
             )
             println "NOTIFICATION_SERVICE: Sending notification to ${callbackUrl}..."
             // Używamy naszego klienta HTTP do wysłania webhooka
-            client.send(callbackUrl, payload)
+            client.send(callbackUrl, payload)  //callbackUrl to oczywiście http://.../webhook.
         }
     }
 }
