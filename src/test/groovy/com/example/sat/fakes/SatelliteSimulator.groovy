@@ -34,43 +34,86 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
         this.activeManifest = manifest
     }
 
-
-
     // Ta metoda TYLKO robi zdjęcia na podstawie zapisanego planu.
     void simulatePhotoTakingProcess() {
-        if (activeManifest) {
-            println "SIMULATOR: Starting photo taking process..."
-            activeManifest.tasks.each { task ->
-                if (task.status == PhotoTaskStatus.PENDING && batteryLevel > 0.2) {
-                    photoStorage[task.taskId] = new PhotoData(
-                            photoId: task.taskId,
-                            quality: "HIGH",
-                            content: "Data for ${task.taskId}"
-                    )
-                    task.status = PhotoTaskStatus.TAKEN_AND_QUEUED
+        if (!activeManifest) {
+            println "SIMULATOR: No active manifest. Photo taking process skipped."
+            return
+        }
+        println "SIMULATOR: Starting photo taking process for mission ${activeManifest.missionId}..."
+        activeManifest.tasks.each { task ->
+            // Sprawdzamy, czy zadanie jest wciąż do wykonania i czy mamy na to energię
+            if (task.status == PhotoTaskStatus.PENDING && batteryLevel > 0.2) {
+                // Tworzymy NOWY, KOMPLETNY obiekt PhotoData
+                def newPhoto = new PhotoData(
+                    // Używamy ID zadania jako ID zdjęcia dla spójności
+                    photoId: task.taskId,
+
+                    // Używamy ID misji z aktywnego manifestu
+                    missionId: this.activeManifest.missionId,
+
+                    // Generujemy timestamp w momencie "zrobienia" zdjęcia
+                    timestamp: System.currentTimeMillis(),
+
+                    // Pozostałe dane
+                    quality: 95, // Użyjmy liczby zamiast stringa "HIGH" dla łatwiejszego przetwarzania
+                    content: "Raw data for ${task.taskId}"
+                )
+
+                // Zapisujemy gotowy obiekt w naszym "magazynie"
+                photoStorage[task.taskId] = newPhoto
+
+                // Aktualizujemy status zadania
+                task.status = PhotoTaskStatus.TAKEN_AND_QUEUED
+
+                println "SIMULATOR: Photo taken for task ${task.taskId}"
                 }
             }
-            println "PHOTO STORAGE after shooting: ${photoStorage.keySet()}"
-            println "SIMULATOR: Photo taking process finished."
+        println "PHOTO STORAGE after shooting: ${photoStorage.size()} photos stored."
+        println "SIMULATOR: Photo taking process finished."
         }
-    }
+
 
     // Metoda do wysyłania danych w paczkach
+    // Downlink zdjęć z SAT (SateliteSimulatorSever) do SERW1 (IntermediateSerwerApp)
     List<PhotoData> downlinkQueuedPhotos() {
-        if (!activeManifest) return []
+        println "SIMULATOR: Checking for photos to downlink..."
 
+        if (!activeManifest) {
+            println "SIMULATOR: No active manifest. Nothing to downlink."
+            return [] // Zwróć pustą listę
+        }
+
+        // 1. Znajdź zadania, które są gotowe do wysłania
         def queuedTasks = activeManifest.tasks
                 .findAll { it.status == PhotoTaskStatus.TAKEN_AND_QUEUED }
-        if (queuedTasks.isEmpty()) return []
 
-        def tasksToDownlink = queuedTasks.take(downlinkBatchSize)
-        println "SIMULATOR: Downlinking a batch of ${tasksToDownlink.size()} photos..."
-
-        def photosToSend = tasksToDownlink.collect { task ->
-            task.status = PhotoTaskStatus.DOWNLINKED
-            photoStorage[task.taskId]
+        if (queuedTasks.isEmpty()) {
+            println "SIMULATOR: No tasks queued for downlink."
+            return [] // Zwróć pustą listę
         }
-        return photosToSend
+
+        // 2. Wybierz paczkę do wysłania, nie większą niż downlinkBatchSize
+        def tasksToDownlink = queuedTasks.take(downlinkBatchSize)
+        println "SIMULATOR: Downlinking a batch of ${tasksToDownlink.size()}  tasks to downlink."
+
+        // 3. Pobierz odpowiadające im zdjęcia i wzbogać je o missionId
+        def photosToSend = tasksToDownlink.collect { task ->
+            def photo = photoStorage.get(task.taskId)
+            if (photo) {
+                // WZBOGACAMY DANE ZDJĘCIA O ID MISJI
+                photo.missionId = this.activeManifest.missionId
+            }
+            return photo // Ten return jest dla bloku .collect
+        }.findAll { it != null } // Usuwamy ewentualne nulle, jeśli zdjęcia nie znaleziono
+
+
+        // 4. Zmień status wysłanych zadań na DOWNLINKING */
+        tasksToDownlink.each { it.status = PhotoTaskStatus.DOWNLINKED }
+
+        // 5. Zwróć przygotowaną listę zdjęć
+        println "SIMULATOR: Returning a batch of ${photosToSend.size()} photos to be sent."
+        return photosToSend // <-- TEN RETURN JEST KLUCZOWY
     }
 
     @Override

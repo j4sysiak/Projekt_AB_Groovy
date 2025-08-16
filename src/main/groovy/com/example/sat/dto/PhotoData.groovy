@@ -1,23 +1,21 @@
+// src/main/groovy/com/example/sat/dto/PhotoData.groovy
 package com.example.sat.dto
 
 import groovy.transform.Canonical
-import groovy.transform.MapConstructor
 
+/**
+ * Reprezentuje pojedyncze zdjęcie wraz z jego metadanymi.
+ * Używa @Canonical do automatycznego generowania konstruktorów, equals, hashCode i toString.
+ */
 @Canonical
-@MapConstructor
 class PhotoData {
-    String photoId = "IMG_" + System.nanoTime()
-    long timestamp = System.currentTimeMillis()
-    String quality
+    // Pola nie powinny mieć domyślnych, dynamicznych wartości, 
+    // aby uniknąć przypadkowego nadpisywania danych.
+    // Wartości powinny być zawsze dostarczane przez konstruktor.
+
+    String photoId
+    String missionId
     String content
-
-
-    PhotoData(String quality, String content) {
-        this.photoId = "IMG_" + System.nanoTime()
-        this.timestamp = System.currentTimeMillis()
-        this.quality = quality
-        this.content = content
-    }
-
-    PhotoData(LinkedHashMap<String, Object> stringObjectLinkedHashMap) {}
+    long timestamp
+    int quality
 }
