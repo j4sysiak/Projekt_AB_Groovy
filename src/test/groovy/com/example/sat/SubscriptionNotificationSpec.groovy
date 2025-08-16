@@ -47,7 +47,7 @@ class SubscriptionNotificationSpec extends Specification {
 
     def "should receive a notification when a subscribed mission is completed"() {
         given: "a mission is planned and a subscription is created"
-        // "Programujemy" odpowiedź naszego fałszywego serwera.
+        // "Programujemy" odpowiedź naszego fałszywego (mockowego ) serwera.
         // Mówimy mu: "Na następne żądanie, które otrzymasz, odpowiedz statusem 200 OK".
         webhookReceiverServer.enqueue(new MockResponse().setResponseCode(200).setBody("Notification received"))
 
@@ -96,3 +96,80 @@ class SubscriptionNotificationSpec extends Specification {
         notification.data.photoCount == 1
     }
 }
+
+
+/*
+Historia, którą opowiada ten test
+Cel testu: Chcemy się upewnić, że jeśli zamówimy prenumeratę powiadomień o ukończeniu misji, to gdy misja faktycznie się zakończy, nasza redakcja (grundServer) wyśle nam listonosza (webhook) z tą informacją.
+
+Krok 1: given: - Przygotowanie sceny
+W tej części przygotowujemy wszystkich aktorów i rekwizyty.
+
+  1. webhookReceiverServer.enqueue(new MockResponse()...)
+     Co to robi? - To jest najważniejsza nowa część. MockWebServer działa jak skrzynka na listy. To polecenie mówi: "Przygotuj tę skrzynkę. Gdy następnym razem listonosz wrzuci do niej list, skrzynka ma po prostu odpowiedzieć 'OK, odebrałem' (setResponseCode(200))." Programujemy z góry reakcję naszej skrzynki.
+     Analogia: - Ustawiamy automatyczną odpowiedź na naszej skrzynce pocztowej.
+
+  2. def missionManifest = new PhotoCollectionManifest(...) i grundServer.missionManifests['M-123'] = ...
+     Co to robi? - Informujemy naszą redakcję (grundServer), że istnieje misja (wydanie gazety) o numerze M-123 i że będzie ona kompletna, gdy będzie miała 1 artykuł (zadanie).
+     Analogia: - Redakcja tworzy w swoim systemie plan nowego wydania gazety.
+
+  3. def subRequest = new SubscriptionRequest(...)
+     Co to robi? - Tworzymy "formularz zamówienia prenumeraty". Mówimy w nim:
+                                  missionId: 'M-123' (Chcę info o tej konkretnej gazecie)
+                                  eventType: 'MISSION_COMPLETED' (Dajcie znać, jak już cała gazeta będzie gotowa)
+                                  callbackUrl: webhookReceiverServer.url(...) (Oto adres mojej skrzynki na listy, na którą macie wysłać powiadomienie). webhookReceiverServer.url(...) pobiera dynamiczny adres, na którym działa nasza fałszywa skrzynka.
+     Analogia: - Wypełniamy formularz prenumeraty, podając nasz adres.
+
+  4. grundClient.sendGenericPost("/subscriptions", subRequest)
+     Co to robi? - Wysyłamy nasz formularz prenumeraty do redakcji.
+     Analogia: - Wrzucamy wypełniony formularz do skrzynki pocztowej i wysyłamy go do redakcji.
+
+   Stan po given::
+   Redakcja (grundServer) wie o misji M-123 i ma zapisane w swojej bazie, że my (pod adresem naszej skrzynki MockWebServer)
+   chcemy dostać powiadomienie, gdy ta misja się zakończy.
+
+
+Krok 2: when: - Główna akcja
+Tutaj dzieje się to, co ma wywołać nasze powiadomienie.
+
+  1. def finalPhotoData = [...]
+     Co to robi? - Tworzymy "ostatni artykuł" potrzebny do ukończenia gazety (misji).
+     Analogia: -  Dziennikarz kończy pisać ostatni tekst.
+
+  2. grundClient.sendGenericPost("/data/ingest", finalPhotoData)
+     Co to robi? Wysyłamy ten ostatni artykuł do redakcji (grundServer).
+     Analogia: Dziennikarz wysyła gotowy tekst do redakcji.
+               W tym momencie redakcja patrzy na swoje notatki i mówi: "Super, mamy już wszystkie artykuły do gazety M-123!
+               Czas powiadomić prenumeratorów!".
+               W tle uruchamia się NotificationService.
+     Stan po when:: Redakcja (grundServer) odebrała ostatnie dane, uznała misję za zakończoną i wysłała listonosza (webhooka) z powiadomieniem na adres, który podaliśmy w prenumeracie.
+
+
+Krok 3: then: i and: - Sprawdzenie rezultatów
+Teraz sprawdzamy, czy wszystko zadziałało jak należy.
+
+    1. def receivedRequest = webhookReceiverServer.takeRequest(5, TimeUnit.SECONDS)
+       Co to robi? - To jest kluczowy moment. Idziemy do naszej skrzynki na listy (MockWebServer) i mówimy:
+       "Poczekaj maksymalnie 5 sekund i daj mi pierwszy list, który do ciebie wpadnie".
+       Ta metoda jest blokująca – test zatrzyma się w tym miejscu i będzie czekał, aż listonosz (grundServer) dostarczy powiadomienie.
+       Analogia: - Czekamy przy skrzynce na listonosza.
+
+    2. receivedRequest != null, receivedRequest.method == "POST" itd.
+       Co to robi? - Sprawdzamy, czy w ogóle coś dostaliśmy i czy listonosz użył poprawnej metody dostarczenia (POST) i wrzucił list do właściwej przegródki (/webhook-endpoint).
+       Analogia:  - Sprawdzamy, czy listonosz faktycznie przyszedł.
+
+    3. def notification = new JsonSlurper()...
+       Co to robi? - Otwieramy kopertę i czytamy treść listu. getBody().readUtf8() wyciąga tekst z listu, a JsonSlurper zamienia go na obiekt, który możemy łatwo czytać.
+       Analogia: - Otwieramy list.
+
+    4. notification.eventType == "MISSION_COMPLETED" itd.
+       Co to robi? - Sprawdzamy, czy w liście jest napisane dokładnie to, czego oczekiwaliśmy: "Misja M-123 została zakończona".
+       Analogia: - Czytamy treść listu i sprawdzamy, czy zgadza się z naszym zamówieniem.
+
+   W pigułce
+GIVEN: Mówimy redakcji, że ma przygotować gazetę i że chcemy dostać powiadomienie na adres naszej skrzynki, gdy będzie gotowa.
+WHEN: Wysyłamy do redakcji ostatni artykuł, co kończy pracę nad gazetą.
+THEN: Czekamy przy naszej skrzynce, odbieramy list od listonosza, otwieramy go i sprawdzamy, czy jest w nim poprawna informacja.
+Mam nadzieję, że ta analogia pomogła rozjaśnić, co dzieje się w tym teście. To naprawdę potężny sposób na weryfikację skomplikowanych interakcji
+
+ */
