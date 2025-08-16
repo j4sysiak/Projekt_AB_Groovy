@@ -44,7 +44,7 @@ class SATtoSERW1_NetworkSpec extends Specification {
         simulator.activeManifest = new PhotoCollectionManifest("MISSION-NETWORK-1", [task])
         simulator.photoStorage["TEST_IMG_1"] = new PhotoData(
                 photoId: "TEST_IMG_1",
-                quality: "HIGH",
+                quality: 95,
                 content: "Simulated image content"
         )
 

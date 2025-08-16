@@ -6,22 +6,16 @@ import com.example.sat.http.SimpleHttpClient
 import spock.lang.Shared
 import spock.lang.Specification
 
-// Ten test weryfikuje tylko i wyłącznie publiczne API serwera SatelliteSimulatorServer
 class SAT_ApiSpec extends Specification {
 
-    @Shared
-    SatelliteSimulatorServer server
-    @Shared
-    SimpleHttpClient client
-    @Shared
-    SatelliteSimulator simulator
+    @Shared SatelliteSimulatorServer server
+    @Shared SimpleHttpClient client
+    @Shared SatelliteSimulator simulator
 
     def setupSpec() {
         simulator = new SatelliteSimulator()
-        // Nie potrzebujemy downlinku do innego serwera, więc URL jest pusty
         server = new SatelliteSimulatorServer(simulator, "")
-        server.start(0) // Uruchom na losowym wolnym porcie
-
+        server.start(0)
         def serverUrl = "http://localhost:${server.getPort()}"
         client = new SimpleHttpClient(serverUrl)
     }
@@ -30,7 +24,6 @@ class SAT_ApiSpec extends Specification {
         server?.stop()
     }
 
-    // Resetujemy stan symulatora przed każdym testem
     def cleanup() {
         simulator.resetState()
     }
@@ -40,10 +33,13 @@ class SAT_ApiSpec extends Specification {
         simulator.batteryLevel = 100.0
         def authToken = "SECRET-API-TOKEN"
 
-        when: "a client executes a standard command sequence"
-        def connectResponse = client.connect(authToken)
-        def commandResponse = client.sendCommand("CHECK_SYSTEM_HEALTH")
-        def disconnectResponse = client.disconnect()
+        when: "a client executes a standard command sequence using generic methods"
+        // POPRAWKA: Używamy sendGenericPost zamiast connect, podając ścieżkę i ciało
+        def connectResponse = client.sendGenericPost("/connect", [token: authToken])
+        // POPRAWKA: Używamy sendGenericPost zamiast sendCommand
+        def commandResponse = client.sendGenericPost("/command", [command: "CHECK_SYSTEM_HEALTH", params: [:]])
+        // POPRAWKA: Używamy sendGenericPost zamiast disconnect
+        def disconnectResponse = client.sendGenericPost("/disconnect", [:])
 
         then: "all HTTP calls are successful"
         connectResponse.statusCode == 200
@@ -57,17 +53,19 @@ class SAT_ApiSpec extends Specification {
         disconnectResponse.json.status == "OK"
 
         and: "the simulator state reflects the interactions"
-        // Sprawdzamy, czy serwer poprawnie zarządzał stanem połączenia symulatora
-        simulator.isConnected() == false // Powinien być rozłączony na końcu
+        simulator.isConnected() == false
         simulator.commandHistory == ["CHECK_SYSTEM_HEALTH"]
     }
 
     def "should reject commands if the client is not connected"() {
         when: "a client sends a command without connecting first"
-        def commandResponse = client.sendCommand("CHECK_STATUS")
+        // POPRAWKA: Używamy sendGenericPost zamiast sendCommand
+        def commandResponse = client.sendGenericPost("/command", [command: "CHECK_STATUS", params: [:]])
 
         then: "the server returns a proper error"
-        commandResponse.statusCode == 500 // Internal Server Error (bo poleciał wyjątek)
+        // ZMIANA: Serwer powinien zwrócić błąd 401 Unauthorized lub 403 Forbidden,
+        // a nie 500, jeśli jest dobrze napisany. Zakładamy, że zwróci 500 z wyjątku.
+        commandResponse.statusCode == 500
 
         and: "the error message indicates the problem"
         commandResponse.json.message.contains("Not connected")

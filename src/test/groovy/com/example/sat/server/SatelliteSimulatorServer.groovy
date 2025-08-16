@@ -68,7 +68,7 @@ class SatelliteSimulatorServer {
             return JsonOutput.toJson([status: "OK", message: "Disconnected"])
         }
 
-        // Endpoint do zlecania wysyłki danych do SERW1
+        // Endpoint do zlecania wysyłki danych z SAT (SateliteSimulatorSever) do SERW1 (IntermediateSerwerApp)
         http.post("/downlink") { req, res ->
             res.type("application/json")
             def photos = simulator.downlinkQueuedPhotos()
