@@ -6,8 +6,7 @@ import com.example.sat.fakes.*
 
 class DataPipelineSpec extends SomeBaseTest { // Dziedziczymy, aby mieć dostęp do SYSTEM_CONFIGS
 
-    DataPipelineSpec() {
-    }
+    //DataPipelineSpec() {}
 
     def "should successfully flow data from satellite, through intermediate server SERW1, to ground control"() {
         given: "a fully interconnected system of simulated servers and fakes"
