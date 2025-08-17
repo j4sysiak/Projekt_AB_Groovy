@@ -112,9 +112,6 @@ class PhotoCollectionPipelineSpec extends Specification {
         assert numberOfTasksWithCorrectStatus == 120
 
 
-
-
-        
         when: "three downlink opportunities occur and data is processed"
         3.times {
             satClient.sendGenericPost("/downlink", [:])
