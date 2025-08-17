@@ -75,6 +75,8 @@ class SubscriptionNotificationSpec extends Specification {
 
         when: "the final data for the mission arrives at ground control"
         // Dane testowe - bez zmian, ale upewnijmy się, że są kompletne
+        // To jest akcja właściwa testu (część when:).
+        // Wysyłamy tę paczkę ze zdjęciem na endpoint /data/ingest w grundServer.
         def finalPhotoData = [[
                                       missionId: 'M-123',
                                       photoId: 'T1',
@@ -85,7 +87,7 @@ class SubscriptionNotificationSpec extends Specification {
         grundClient.sendGenericPost("/data/ingest", finalPhotoData)
 
         then: "the webhook receiver gets a correct POST request"
-        // ZMIANA: Zamiast Awaitility, używamy wbudowanej metody MockWebServer,
+        // używamy wbudowanej metody MockWebServer,
         // która czeka na żądanie (z timeoutem dla bezpieczeństwa).
         def receivedRequest = webhookReceiverServer.takeRequest(5, TimeUnit.SECONDS)
 
