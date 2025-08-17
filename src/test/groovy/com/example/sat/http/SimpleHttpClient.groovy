@@ -48,7 +48,6 @@ class SimpleHttpClient implements ISatelliteApiClient, INotificationClient {
 
 
     // === PRYWATNA METODA WYKONAWCZA ===
-
     private Map sendRequest(String urlOrPath, String method, Object body = null) {
         HttpURLConnection connection
         try {

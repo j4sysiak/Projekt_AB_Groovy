@@ -1,4 +1,3 @@
-// src/test/groovy/com/example/sat/SubscriptionNotificationSpec.groovy
 package com.example.sat
 
 import com.example.sat.dto.PhotoCollectionManifest
@@ -58,6 +57,11 @@ class SubscriptionNotificationSpec extends Specification {
                 tasks: [testTask],
                 status: "UPLOADED"
         )
+        // to oznacza: "Włam się do obiektu grundServer, znajdź jego wewnętrzną listę/mapę o nazwie missionManifests
+        // i ręcznie, na siłę, wstaw tam nasz przygotowany manifest pod kluczem 'M-123'."
+        //To jest operacja bezpośredniego ustawienia stanu wewnętrznego obiektu grundServer na potrzeby testu.
+        // .missionManifests: To jest publiczne pole (lub pole dostępne w ramach pakietu) w klasie GroundControlServerApp.
+        // Jest to mapa, która przechowuje wszystkie aktywne manifesty misji, używając missionId jako klucza.
         grundServer.missionManifests['M-123'] = missionManifest
 
         // Tworzymy subskrypcję, podając adres URL naszego MockWebServer
@@ -76,7 +80,7 @@ class SubscriptionNotificationSpec extends Specification {
                                       photoId: 'T1',
                                       content: 'Test content',
                                       timestamp: System.currentTimeMillis(),
-                                      quality: 99
+                                      quality: 99  // "HIGH"
                               ]]
         grundClient.sendGenericPost("/data/ingest", finalPhotoData)
 
