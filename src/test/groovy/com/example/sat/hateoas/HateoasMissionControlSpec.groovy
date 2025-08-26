@@ -4,13 +4,13 @@ package com.example.sat.hateoas
 import com.example.sat.http.SimpleHttpClient
 import groovy.json.JsonOutput
 import spark.Service
-import spock.lang.Shared // <-- UPEWNIJ SIĘ, ŻE MASZ TEN IMPORT
+import spock.lang.Shared
 import spock.lang.Specification
 
 class HateoasMissionControlSpec extends Specification {
 
     // Nasz mini-serwer do demonstracji HATEOAS
-    @Shared Service missionServer
+    @Shared Service missionServer  // inteligentny robot, servuje linki na żądanie klienta
     // Nasz klient do komunikacji
     @Shared SimpleHttpClient client
     // Adres URL serwera
@@ -18,11 +18,10 @@ class HateoasMissionControlSpec extends Specification {
 
     // === Stan naszej prostej misji na serwerze ===
     // W prawdziwej aplikacji byłoby to w bazie danych.
-    static String missionState = "PLANNED"
+    static String missionState = "PLANNED"   //  stan misji
 
     // Uruchamiamy serwer przed wszystkimi testami w tej klasie
     def setupSpec() {
-        // Teraz, gdy pola są @Shared, ten kod jest w pełni poprawny
         missionServer = Service.ignite()
         missionServer.port(0)  // uruchom na losowym porcie
 
@@ -31,6 +30,7 @@ class HateoasMissionControlSpec extends Specification {
         // 1. Główny endpoint, który zwraca stan misji i dostępne akcje
         missionServer.get("/mission") { req, res ->
             res.type("application/json")
+            println "Główny Endpoint, który zwraca stan misji i dostępne akcje"
 
             def baseUrl = req.scheme() + "://" + req.host()
             def response = [
@@ -54,6 +54,7 @@ class HateoasMissionControlSpec extends Specification {
 
         // 2. Endpoint do uruchamiania misji (istnieje tylko, gdy misja jest PLANNED)
         missionServer.post("/mission/start") { req, res ->
+            println "Endpoint do uruchamiania misji (istnieje tylko, gdy misja jest PLANNED)"
             if (missionState == "PLANNED") {
                 missionState = "IN_PROGRESS"
                 res.status(200)
@@ -66,6 +67,7 @@ class HateoasMissionControlSpec extends Specification {
 
         // 3. Endpoint do kończenia misji (istnieje tylko, gdy misja jest IN_PROGRESS)
         missionServer.post("/mission/complete") { req, res ->
+            println "Endpoint do kończenia misji (istnieje tylko, gdy misja jest IN_PROGRESS)"
             if (missionState == "IN_PROGRESS") {
                 missionState = "COMPLETED"
                 res.status(200)

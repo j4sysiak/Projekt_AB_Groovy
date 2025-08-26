@@ -22,8 +22,7 @@ class GroundControlServerApp {
     private Map<String, PhotoCollectionManifest> missionManifests = [:]
     private final FakeRelationalDB database = new FakeRelationalDB()
     private boolean forceUnhealthy = false
-    // NOWE POLE: INSTANCJA SERWISU POWIADOMIEŃ
-    private NotificationService notificationService
+    private NotificationService notificationService //POLE: INSTANCJA SERWISU POWIADOMIEŃ
 
     void start(int port, String satelliteServerUrl) {
         def notificationExecutor = Executors.newCachedThreadPool()
@@ -52,6 +51,8 @@ class GroundControlServerApp {
         // Przekazujemy implementacje do serwisu
         this.notificationService = new NotificationService(this.database, notificationClient)
 
+        // ---------------  ENDPOINTY
+
         http.get("/health") { req, res ->
             res.type("application/json")
             if (self.forceUnhealthy) {
@@ -60,6 +61,35 @@ class GroundControlServerApp {
             }
             res.status(200)
             return JsonOutput.toJson([status: "UP"])
+        }
+
+        // === ENDPOINT GŁÓWNY (ROOT) Z LINKAMI HATEOAS ===
+        http.get("/") { req, res ->
+            res.type("application/json")
+
+            // Budujemy bazowy URL na podstawie danych z przychodzącego żądania
+            // Np. "http://localhost:51234"
+            String baseUrl = req.scheme() + "://" + req.host()
+
+            // Zwracamy "menu" dostępnych akcji w standardowym formacie HAL (Hypertext Application Language)
+            return JsonOutput.toJson([
+                    _links: [
+                            // Link do samego siebie (standard w HATEOAS)
+                            self: [ href: baseUrl + "/" ],
+
+                            // Link do akcji tworzenia nowej misji
+                            "create-mission": [
+                                    href: baseUrl + "/missions/photo-collection",
+                                    method: "POST"
+                            ],
+
+                            // Link do akcji tworzenia nowej subskrypcji
+                            "create-subscription": [
+                                    href: baseUrl + "/subscriptions",
+                                    method: "POST"
+                            ]
+                    ]
+            ])
         }
 
         http.post("/data/ingest") { req, res ->

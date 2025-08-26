@@ -5,23 +5,41 @@ Auto
 Expand to view model thoughts
 
 chevron_right
-Świetny pomysł! To idealne podejście – "pobawić się" nową koncepcją w kontrolowany sposób, nie ryzykując destabilizacji działającego kodu.
-Stworzymy mały, samowystarczalny przykład, który będzie żył obok Twojego istniejącego systemu. Będzie on ilustrował ideę HATEOAS na prostym przykładzie zarządzania misją. Zbudujemy go tak, aby był "przytulony" do projektu, czyli użyjemy tych samych narzędzi (Spock, Groovy, SparkJava), ale będzie on w pełni niezależny.
+Świetny pomysł! To idealne podejście – "pobawić się" nową koncepcją w kontrolowany sposób, 
+nie ryzykując destabilizacji działającego kodu.
+Stworzymy mały, samowystarczalny przykład, który będzie żył obok Twojego istniejącego systemu. 
+Będzie on ilustrował ideę HATEOAS na prostym przykładzie zarządzania misją. 
+Zbudujemy go tak, aby był "przytulony" do projektu, czyli użyjemy tych samych narzędzi (Spock, Groovy, SparkJava), 
+ale będzie on w pełni niezależny.
+
 Projekt: "Inteligentny Kokpit Misji" (HATEOAS Demo)
-Cel: Zbudujemy mini-serwer, który zarządza cyklem życia jednej misji. Klient będzie mógł "nawigować" po stanie misji, podążając za linkami, które podsuwa mu serwer.
+Cel: Zbudujemy mini-serwer, który zarządza cyklem życia jednej misji. 
+     Klient będzie mógł "nawigować" po stanie misji, podążając za linkami, które podsuwa mu serwer.
+
 Scenariusz, który zaimplementujemy:
 Klient pyta o stan misji.
 Jeśli misja jest w stanie PLANNED, serwer daje mu link do akcji "Uruchom misję".
 Klient "klika" ten link (wysyła żądanie).
 Stan misji zmienia się na IN_PROGRESS.
-Klient znowu pyta o stan. Serwer widzi, że misja jest w toku i daje mu link do akcji "Zakończ misję".
+
+Klient znowu pyta o stan. 
+Serwer widzi, że misja jest w toku i daje mu link do akcji "Zakończ misję".
 Klient "klika" ten link.
 Stan misji zmienia się na COMPLETED.
-Klient znowu pyta o stan. Serwer widzi, że misja jest zakończona i nie daje już żadnych linków do akcji.
+
+Klient znowu pyta o stan. 
+Serwer widzi, że misja jest zakończona i nie daje już żadnych linków do akcji.
+
 Krok 1: Stwórz nowy plik testowy
-Stwórz nowy plik w src/test/groovy/com/example/sat/hateoas/HateoasMissionControlSpec.groovy. Utworzenie nowego podfolderu hateoas pomoże utrzymać porządek.
+Stwórz nowy plik w src/test/groovy/com/example/sat/hateoas/HateoasMissionControlSpec.groovy. 
+Utworzenie nowego podfolderu hateoas pomoże utrzymać porządek.
+
 Krok 2: Kod - Mini-serwer i "Inteligentny" Klient w jednym teście
-Wklej poniższy kod do nowo utworzonego pliku. Jest to kompletny, działający przykład – zawiera zarówno logikę serwera, jak i test, który go używa. Przeczytaj uważnie komentarze.
+Wklej poniższy kod do nowo utworzonego pliku. 
+Jest to kompletny, działający przykład – zawiera zarówno logikę serwera, jak i test, który go używa. 
+Przeczytaj uważnie komentarze.
+
+``` groovy
 code
 Groovy
 // src/test/groovy/com/example/sat/hateoas/HateoasMissionControlSpec.groovy
@@ -168,15 +186,99 @@ class HateoasMissionControlSpec extends Specification {
         finalState._links.complete == null
     }
 }
+```
+
 Jak uruchomić i zrozumieć ten przykład?
 Wklej ten kod do pliku HateoasMissionControlSpec.groovy.
-Uruchom test. Powinien przejść i zaświecić się na zielono.
-Spójrz na wydruki w konsoli. Zobaczysz tam, jak klient krok po kroku odkrywa, co ma dalej zrobić:
-Najpierw pyta o stan i dostaje link do akcji "start".
-Używa tego linku, żeby zmienić stan.
-Pyta ponownie i dostaje link do akcji "complete".
-Używa tego linku, żeby znowu zmienić stan.
-Na końcu pyta i widzi, że nie ma już żadnych akcji do wykonania.
+
+Uruchom test. 
+Powinien przejść i zaświecić się na zielono.
+Spójrz na wydruki w konsoli. 
+Zobaczysz tam, jak klient krok po kroku odkrywa, co ma dalej zrobić:
+
+- Najpierw pyta o stan i dostaje link do akcji "start".
+  Używa tego linku, żeby zmienić stan.
+  
+- Pyta ponownie i dostaje link do akcji "complete".
+  Używa tego linku, żeby znowu zmienić stan.
+
+- Na końcu pyta i widzi, że nie ma już żadnych akcji do wykonania.
+
+
 Jak to "przytulić" do Twojego projektu?
-Ten przykład jest w pełni samowystarczalny. Możesz go analizować, modyfikować, "psuć", żeby zobaczyć, jak reaguje.
-Kiedy już poczujesz się z tym komfortowo, możesz zacząć myśleć, jak zaimplementować podobną logikę w GroundControlServerApp. Zamiast prostego missionState, będziesz operować na prawdziwych manifestach, ale idea pozostanie ta sama: odpowiedź z API powinna zawierać nie tylko dane, ale także menu dostępnych akcji w formie linków.
+Ten przykład jest w pełni samowystarczalny. 
+Możesz go analizować, modyfikować, "psuć", żeby zobaczyć, jak reaguje.
+Kiedy już poczujesz się z tym komfortowo, możesz zacząć myśleć, jak zaimplementować podobną logikę w GroundControlServerApp. 
+Zamiast prostego missionState, będziesz operować na prawdziwych manifestach, ale idea pozostanie ta sama: 
+  odpowiedź z API powinna zawierać nie tylko dane, ale także menu dostępnych akcji w formie linków.
+
+
+//////////////////////////  nic nie kumam z tego testu  objaśnij mi o co kamman.  //////////////////////////////
+
+Jasne! To jest absolutnie kluczowe. Nie ma sensu pisać kodu, którego się nie rozumie. 
+Ten test jest inny niż poprzednie, bo nie testuje prostego przepływu danych, ale sposób, w jaki klient "rozmawia" z serwerem.
+Zapomnijmy na chwilę o technicznych detalach. 
+Wyjaśnię to na prostej, życiowej analogii.
+
+Analogia: Rozmowa z "Głupim" vs "Inteligentnym" Robotem
+Wyobraź sobie, że chcesz zamówić pizzę przez robota-kelnera.
+
+Scenariusz 1: 
+"Głupi" Robot (Nasze stare API)
+Ty (klient) masz sztywną instrukcję w głowie:
+Podejdź do "Głupiego" robota.
+Powiedz: "Zamawiam pizzę".
+Powiedz: "Płacę".
+Powiedz: "Odbieram".
+
+Jeśli właściciel restauracji zmieni komendę z "Płacę" na "Reguluję rachunek", twoja instrukcja przestaje działać. 
+Stoisz z pizzą w ręku i nie wiesz, co robić. Jesteś mocno związany z tym, jak robot został pierwotnie zaprogramowany.
+
+
+Scenariusz 2: "Inteligentny" Robot HATEOAS (Ten nowy test)
+Ty (klient) masz tylko jedną instrukcję: "Podejdź do robota i zapytaj, co możesz zrobić".
+Wasza rozmowa wygląda tak:
+TY: Cześć, co mogę zrobić?
+ROBOT (SERWER): Twoje zamówienie ma status "Nowe". Dostępne akcje to: [Dodaj Składniki] i [Anuluj Zamówienie].
+(Robot podaje ci "przyciski" do wciśnięcia)
+
+TY: OK, wciskam [Dodaj Składniki].
+(Ty nie znasz komendy "Dodaj Składniki" na pamięć. Po prostu używasz opcji, którą dał ci robot).
+
+TY: Cześć, co mogę zrobić teraz?
+ROBOT (SERWER): Twoje zamówienie ma status "Skonfigurowane". 
+Dostępne akcje to: [Zatwierdź i Zapłać] -  ooo zobacz,  przycisk [Dodaj Składniki] zniknął!
+(Robot dynamicznie zmienia dostępne opcje w zależności od stanu zamówienia)
+TY: Super, wciskam [Zatwierdź i Zapłać].
+TY: Cześć, co teraz?
+
+ROBOT (SERWER): Twoje zamówienie ma status "Zakończone". Nie ma już dostępnych akcji.
+
+O co "kamman" w tym teście?
+Ten test pokazuje dokładnie ten drugi scenariusz. Testujemy API, które prowadzi klienta za rękę.
+    ```missionServer``` to nasz "Inteligentny Robot".
+client to my, klient, który nie ma sztywnej instrukcji, tylko pyta robota o dostępne opcje.
+    ```missionState``` to aktualny stan zamówienia.
+    ```_links``` to "przyciski" (dostępne akcje), które robot nam podaje.
+
+Przełożenie Testu na Naszą Analogię (Krok po Kroku):
+
+when: "client checks the initial state..."
+Co robimy: Pytamy robota po raz pierwszy: "Cześć, co mogę zrobić?".
+Kod: client.getData("/mission")
+then: "mission is PLANNED and server provides a 'start' link"
+Co sprawdzamy: Czy robot odpowiedział: "Status to PLANNED" i czy dał nam przycisk [start] do wciśnięcia.
+Kod: initialState.status == "PLANNED", initialState._links.start != null
+when: "client follows the 'start' link..."
+Co robimy: Odczytujemy adres z przycisku [start], który dał nam robot, i go "wciskamy".
+Kod: def startLink = initialState._links.start.href, client.sendGenericPost(startLink, [:])
+then: "mission is IN_PROGRESS and server now provides a 'complete' link"
+Co sprawdzamy: Pytamy robota znowu: "Co teraz?". Sprawdzamy, czy odpowiedział: "Status to IN_PROGRESS" i czy dał nam nowy przycisk [complete], a stary przycisk [start] zniknął.
+Kod: inProgressState.status == "IN_PROGRESS", inProgressState._links.complete != null, inProgressState._links.start == null
+when: "client follows the 'complete' link"
+Co robimy: Wciskamy nowy przycisk [complete].
+Kod: def completeLink = ..., client.sendGenericPost(completeLink, [:])
+then: "mission is COMPLETED and there are no more action links"
+Co sprawdzamy: Pytamy robota ostatni raz. Sprawdzamy, czy odpowiedział: "Status to COMPLETED" i czy nie dał nam już żadnych przycisków.
+Kod: finalState.status == "COMPLETED", finalState._links.start == null, finalState._links.complete == null
+Podsumowując: Ten test udowadnia, że nasz serwer jest "inteligentny". Nie tylko przechowuje stan misji, ale także informuje klienta, co może z tym stanem zrobić w danym momencie. Klient nie musi niczego zgadywać ani mieć niczego "na sztywno". Po prostu podąża za wskazówkami serwera.
