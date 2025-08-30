@@ -90,6 +90,12 @@ class IntermediateServerApp {
         println "SERVER (SERW1): Intermediate Server started on port ${http.port()}."
     }
 
+    void updateGrundControlUrl(String groundControlServerUrl) {
+        if (groundControlServerUrl) {
+            this.grundClient = new SimpleHttpClient(groundControlServerUrl)
+        }
+    }
+
     void stop() {
         if (http != null) {
             println "SERVER (SERW1): Stopping Intermediate Server..."

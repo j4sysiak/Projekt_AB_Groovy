@@ -7,5 +7,7 @@ import groovy.transform.Canonical
 class PhotoCollectionManifest {
     String missionId = "MCOL_" + System.nanoTime()
     List<PhotoTask> tasks
+
+    // Możliwe statusy: PLANNED, ACCEPTED, UPLOADING, UPLOADED, COMPLETED, FAILED
     String status = "PLANNED" // Dodajemy pole statusu
 }

@@ -1,9 +1,5 @@
 package com.example.sat
 
-// Niektóre importy nie będą już potrzebne
-// import com.example.sat.domain.Coordinates
-// import com.example.sat.dto.MissionRequest
-
 import com.example.sat.fakes.SatelliteSimulator
 import com.example.sat.http.SimpleHttpClient
 import com.example.sat.server.GroundControlServerApp
@@ -17,7 +13,6 @@ class MissionUploadSpec extends Specification {
     SatelliteSimulator simulator
     SimpleHttpClient grundClient
 
-    // Metoda setup() jest w porządku, zostaje bez zmian
     def setup() {
         simulator = new SatelliteSimulator()
         satServer = new SatelliteSimulatorServer(simulator, "")
@@ -29,42 +24,51 @@ class MissionUploadSpec extends Specification {
         def grundServerUrl = "http://localhost:${grundServer.getPort()}"
 
         grundClient = new SimpleHttpClient(grundServerUrl)
-
-        // Usunięto setMissionPlanner, bo ta logika jest teraz prawdopodobnie
-        // wewnątrz GroundControlServerApp i nie trzeba jej wstrzykiwać
     }
 
-    // Metoda cleanup() jest w porządku
     def cleanup() {
         grundServer?.stop()
         satServer?.stop()
     }
 
-    // ZMIENIONA NAZWA I LOGIKA TESTU
-    def "ground server should successfully create and upload a photo collection mission"() {
+    // ZMIANA: Nazwa i logika testu zostały w pełni przepisane, aby odzwierciedlały nowy proces
+    def "should allow client to create, accept, and upload a mission"() {
         given: "a request to collect 5 photos"
-        // ZMIANA: Tworzymy prostą mapę, której oczekuje nowy endpoint
         def missionRequest = [photoCount: 5]
 
+        // --- ETAP 1: Tworzenie Misji ---
         when: "the mission request is sent to the ground control server"
-        // ZMIANA: Używamy poprawnego, istniejącego endpointu
-        def response = grundClient.sendGenericPost("/missions/photo-collection", missionRequest)
+        def createResponse = grundClient.sendGenericPost("/missions/photo-collection", missionRequest)
 
-        then: "the ground server accepts the mission and confirms upload to the satellite"
-        // Sprawdzamy, czy serwer naziemny poprawnie przetworzył i przekazał misję
-        response.statusCode == 202
-        def responseBody = response.json
-        responseBody.status == "UPLOADED"
-        def missionId = responseBody.missionId
+        then: "the mission is created successfully in PLANNED state"
+        createResponse.statusCode == 202
+        def mission = createResponse.json
+        def missionId = mission.missionId
+        mission.status == "PLANNED"
         missionId != null
 
+        // --- ETAP 2: Akceptacja Misji ---
+        when: "the client accepts the mission"
+        def acceptResponse = grundClient.sendGenericPost("/missions/${missionId}/accept", [:])
+
+        then: "the accept operation is successful"
+        acceptResponse.statusCode == 200
+
+        // --- ETAP 3: Wysyłka Misji ---
+        when: "the client requests to upload the mission"
+        def uploadResponse = grundClient.sendGenericPost("/missions/${missionId}/upload", [:])
+
+        then: "the upload is successful"
+        uploadResponse.statusCode == 200
+        uploadResponse.json.status == "OK"
+
         and: "the satellite simulator has stored the correct manifest"
-        // Sprawdzamy, czy satelita otrzymał i zapisał misję
-        // Używamy eventually/sleep, bo komunikacja jest asynchroniczna
-        Thread.sleep(1000) // Dajmy chwilę na komunikację sieciową
+        // Czekamy chwilę na asynchroniczną komunikację sieciową
+        Thread.sleep(1000)
 
         simulator.activeManifest != null
         simulator.activeManifest.missionId == missionId
+        simulator.activeManifest.status == "UPLOADED" // Sprawdzamy finalny status na satelicie
         simulator.activeManifest.tasks.size() == 5
     }
 }

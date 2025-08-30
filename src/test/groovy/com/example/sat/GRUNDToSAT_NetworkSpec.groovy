@@ -30,21 +30,40 @@ class GRUNDToSAT_NetworkSpec extends Specification {
         satServer?.stop()
     }
 
-    def "ground server should successfully request and upload a photo collection mission"() {
+    // ZMIANA: Nazwa i logika testu zostały w pełni przepisane
+    def "ground server should allow a client to take a mission through its full lifecycle"() {
         given: "both servers are running"
         simulator.batteryLevel = 100.0
 
         when: "a user sends a mission request to the ground control server"
         def missionRequest = [photoCount: 5]
-        def response = grundClient.sendGenericPost("/missions/photo-collection", missionRequest)
+        def createResponse = grundClient.sendGenericPost("/missions/photo-collection", missionRequest)
 
-        then: "the ground server accepts the mission and confirms upload to satellite"
-        response.statusCode == 202
-        def manifest = response.json
-        manifest.status == "UPLOADED"
-        manifest.tasks.size() == 5
+        then: "the mission is created in PLANNED state"
+        createResponse.statusCode == 202
+        def mission = createResponse.json
+        def missionId = mission.missionId
+        mission.status == "PLANNED"
+        mission.tasks.size() == 5
+        missionId != null
 
-        and: "the satellite simulator has stored the manifest"
-        simulator.activeManifest.missionId == manifest.missionId
+        when: "the client accepts the mission"
+        // Nie musimy używać HATEOAS, bo ten test sprawdza tylko poprawność kroków
+        def acceptResponse = grundClient.sendGenericPost("/missions/${missionId}/accept", [:])
+
+        then: "the mission status is updated to ACCEPTED"
+        acceptResponse.statusCode == 200
+
+        when: "the client requests to upload the mission"
+        def uploadResponse = grundClient.sendGenericPost("/missions/${missionId}/upload", [:])
+
+        then: "the upload is successful and the satellite receives the manifest"
+        uploadResponse.statusCode == 200
+        uploadResponse.json.status == "OK"
+
+        // Czekamy chwilę, bo komunikacja jest asynchroniczna
+        Thread.sleep(500)
+        simulator.activeManifest.missionId == missionId
+        simulator.activeManifest.status == "UPLOADED"
     }
 }
