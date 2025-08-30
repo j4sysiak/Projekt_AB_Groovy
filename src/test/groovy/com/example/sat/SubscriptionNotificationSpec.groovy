@@ -7,11 +7,11 @@ import com.example.sat.dto.SubscriptionRequest
 import com.example.sat.http.SimpleHttpClient
 import com.example.sat.server.GroundControlServerApp
 import groovy.json.JsonSlurper
-import okhttp3.mockwebserver.MockResponse      // <-- NOWY IMPORT
-import okhttp3.mockwebserver.MockWebServer      // <-- NOWY IMPORT
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import spock.lang.Shared
 import spock.lang.Specification
-import java.util.concurrent.TimeUnit           // <-- NOWY IMPORT
+import java.util.concurrent.TimeUnit
 
 class SubscriptionNotificationSpec extends Specification {
 
