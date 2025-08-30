@@ -92,6 +92,80 @@ class GroundControlServerApp {
             ])
         }
 
+        // === DYNAMICZNY ENDPOINT STANU MISJI ===
+        http.get("/missions/:missionId") { req, res ->
+            res.type("application.json")
+            println "GRUND: DYNAMICZNY ENDPOINT STANU MISJI"
+
+            String missionId = req.params(":missionId")
+            def manifest = missionManifests[missionId]
+
+            if (!manifest) {
+                res.status(404)
+                return JsonOutput.toJson([error: "Mission with ID ${missionId} not found."])
+            }
+
+            String baseUrl = req.scheme() + "://" + req.host()
+            def missionUrl = baseUrl + "/missions/${missionId}"
+
+            // === POPRAWKA 2.0: Jawne budowanie mapy dla każdego zadania ===
+            def response = [
+                    missionId: manifest.missionId,
+                    status: manifest.status,
+
+                    // KLUCZOWA ZMIANA: Zamiast it.asType(Map), budujemy mapę ręcznie.
+                    tasks: manifest.tasks.collect { task ->
+                        [
+                                taskId: task.taskId,
+                                // Jawnie konwertujemy Enum na jego nazwę (String)
+                                status: task.status.name()
+                        ]
+                    },
+                    _links: [
+                            self: [ href: missionUrl ]
+                    ]
+            ]
+
+            // === Logika HATEOAS: Dynamiczne dodawanie linków do akcji ===
+            switch (manifest.status) {
+                case "PLANNED":
+                    // Jeśli misja jest zaplanowana, pozwalamy ją zaakceptować
+                    response._links."accept-mission" = [ href: missionUrl + "/accept", method: "POST" ]
+                    break
+                case "ACCEPTED":
+                    // Jeśli zaakceptowana, pozwalamy ją wysłać do satelity
+                    response._links."upload-to-satellite" = [ href: missionUrl + "/upload", method: "POST" ]
+                    break
+                case "COMPLETED":
+                    // Jeśli zakończona, pozwalamy utworzyć subskrypcję
+                    // (To tylko przykład, można tu dodać inne akcje)
+                    response._links."create-subscription" = [ href: baseUrl + "/subscriptions", method: "POST" ]
+                    break
+            }
+
+            res.status(200)
+            return JsonOutput.toJson(response)
+        }
+
+
+        // === ENDPOINT AKCJI: Akceptacja misji ===
+        http.post("/missions/:missionId/accept") { req, res ->
+            res.type("application/json")
+            println "GRUND: ENDPOINT AKCJI: Akceptacja misji"
+
+            String missionId = req.params(":missionId")
+            def manifest = missionManifests[missionId]
+
+            if (!manifest || manifest.status != "PLANNED") {
+                res.status(409) // Conflict
+                return JsonOutput.toJson([error: "Mission cannot be accepted at this time."])
+            }
+
+            manifest.status = "ACCEPTED"
+            res.status(200)
+            return JsonOutput.toJson([status: "OK", message: "Mission ${missionId} has been accepted."])
+        }
+
         http.post("/data/ingest") { req, res ->
             res.type("application/json")
             try {
@@ -163,15 +237,35 @@ class GroundControlServerApp {
         http.post("/missions/photo-collection") { req, res ->
             try {
                 res.type("application/json")
-                def params = new JsonSlurper().parseText(req.body())
-                int photoCount = params.photoCount
+                def missionData = new JsonSlurper().parseText(req.body())
+                int photoCount = missionData.photoCount as int
+
+                if (photoCount <= 0) {
+                    res.status(400)
+                    return JsonOutput.toJson([error: "photoCount must be a positive integer."])
+                }
 
                 def tasks = (1..photoCount).collect { new PhotoTask() }
                 def manifest = new PhotoCollectionManifest(tasks: tasks)
+                // Manifest jest tworzony z domyślnym statusem "PLANNED"
+
                 self.missionManifests[manifest.missionId] = manifest
+                println "GRUND: New mission ${manifest.missionId} created with status PLANNED."
 
+                // === USUWAMY LOGIKĘ WYSYŁANIA ===
+                // To będzie teraz robione przez osobny endpoint /upload
+            /*
+                // Oznacza to:
+                // "W bieżącym obiekcie serwera naziemnego (self), użyj jego wewnętrznego klienta HTTP (satClient obiekt ISatelliteApiClient),
+                // aby wywołać metodę uploadMissionPlan i przesłać do serwera satelity cały obiekt manifestu (manifest).
+                // Wynik tej operacji (odpowiedź od serwera satelity) zapisz w zmiennej response."
                 def response = self.satClient.uploadMissionPlan(manifest)
+            */
 
+                res.status(202) // Accepted
+                // Zwracamy cały manifest, żeby klient miał ID
+                return JsonOutput.toJson(manifest)
+          /*
                 if (response.statusCode == 202) {
                     manifest.status = "UPLOADED"
                     res.status(202)
@@ -181,11 +275,46 @@ class GroundControlServerApp {
                     res.status(502)
                     return JsonOutput.toJson([error: "Satellite rejected the manifest."])
                 }
+
+           */
             } catch (Exception e) {
                 res.status(500)
                 println "ERROR in /missions/photo-collection: ${e.message}"
                 e.printStackTrace()
                 return JsonOutput.toJson([error: "Unexpected error: ${e.message}"])
+            }
+        }
+
+        // === ENDPOINT AKCJI: Wysyłka do satelity ===
+        // Ten endpoint jest "celem" linku HATEOAS `upload-to-satellite`
+        http.post("/missions/:missionId/upload") { req, res ->
+            res.type("application/json")
+            println "GRUND: ENDPOINT AKCJI: Wysyłka do satelity"
+
+            String missionId = req.params(":missionId")
+            def manifest = missionManifests[missionId]
+
+            // Sprawdzamy, czy można wykonać tę akcję
+            if (!manifest || manifest.status != "ACCEPTED") {
+                res.status(409) // Conflict
+                return JsonOutput.toJson([error: "Mission cannot be uploaded at this time."])
+            }
+
+            println "GRUND: Preparing to upload manifest for mission ${missionId} to satellite..."
+            // === POPRAWKA: Zmień status PRZED wysłaniem ===
+            manifest.status = "UPLOADED"
+
+            def uploadResponse = satClient.uploadMissionPlan(manifest)
+
+            // Na podstawie odpowiedzi od satelity, aktualizujemy stan misji
+            if (uploadResponse.statusCode == 202) {
+                res.status(200)
+                return JsonOutput.toJson([status: "OK", message: "Mission ${missionId} uploaded successfully."])
+            } else {
+                // Jeśli wysyłka się nie udała, cofnijmy status do poprzedniego stanu
+                manifest.status = "FAILED" // lub z powrotem "ACCEPTED", aby umożliwić ponowną próbę
+                res.status(502)
+                return JsonOutput.toJson([status: "ERROR", message: "Failed to upload mission to satellite."])
             }
         }
 
@@ -211,6 +340,13 @@ class GroundControlServerApp {
 
         http.awaitInitialization()
         println "SERVER (GRUND): Started on port ${http.port()}."
+    }
+
+    void updateSatClientUrl(String satelliteSimulatorUrl) {
+        if (satelliteSimulatorUrl) {
+            this.satClient = new SimpleHttpClient(satelliteSimulatorUrl)
+            println "GRUND: Satellite client URL updated to ${satelliteSimulatorUrl}"
+        }
     }
 
     void stop() { if (http != null) { http.stop(); http.awaitStop(); println "SERVER (GRUND): Server stopped." } }
