@@ -56,7 +56,7 @@ class SubscriptionNotificationSpec extends Specification {
                 missionId: 'M-123',
                 tasks: [testTask],
                 status: "UPLOADED"
-         )
+        )
         // to oznacza: "Włam się do obiektu grundServer, znajdź jego wewnętrzną listę/mapę o nazwie missionManifests
         // i ręcznie, na siłę, wstaw tam nasz przygotowany manifest pod kluczem 'M-123'."
         //To jest operacja bezpośredniego ustawienia stanu wewnętrznego obiektu grundServer na potrzeby testu.
