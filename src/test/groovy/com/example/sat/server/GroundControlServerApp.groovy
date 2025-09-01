@@ -113,20 +113,24 @@ class GroundControlServerApp {
                     missionId: manifest.missionId,
                     status: manifest.status,
 
-                    // KLUCZOWA ZMIANA: Zamiast it.asType(Map), budujemy mapę ręcznie.
+                    //Już nie będziemy zwracać taska tutaj
+                    /*
                     tasks: manifest.tasks.collect { task ->
                         [
                                 taskId: task.taskId,
                                 // Jawnie konwertujemy Enum na jego nazwę (String)
                                 status: task.status.name()
                         ]
-                    },
+                    }, */
+
                     _links: [
-                            self: [ href: missionUrl ]
+                            self: [ href: missionUrl ],
+                            tasks: [ href: missionUrl + "/tasks" ] // <-- NAJWAŻNIEJSZA ZMIANA
                     ]
             ]
 
-            // === Logika HATEOAS: Dynamiczne dodawanie linków do akcji ===
+            // === Logika HATEOAS dla AKCJI (pozostaje bez zmian) ===
+            // Ta część nadal będzie dodawać link 'accept-mission', jeśli status to PLANNED.
             switch (manifest.status) {
                 case "PLANNED":
                     // Jeśli misja jest zaplanowana, pozwalamy ją zaakceptować
@@ -144,6 +148,61 @@ class GroundControlServerApp {
             }
 
             res.status(200)
+            return JsonOutput.toJson(response)
+        }
+
+        // nowy, paginowany endpoint
+        http.get("/missions/:missionId/tasks") { req, res ->
+            res.type("application/json")
+            String missionId = req.params(":missionId")
+            def manifest = missionManifests[missionId]
+
+            if (!manifest) {
+                res.status(404)
+                return JsonOutput.toJson([error: "Mission with ID ${missionId} not found."])
+            }
+
+            // === Logika Paginacji ===
+            // Pobieramy parametry z URL-a, np. /tasks?page=2&size=10
+            int page = req.queryParams("page") ? req.queryParams("page") as int : 1
+            int size = req.queryParams("size") ? req.queryParams("size") as int : 10 // Domyślnie 10 na stronę
+            int totalTasks = manifest.tasks.size()
+            int totalPages = Math.ceil(totalTasks / (double) size) as int
+            int offset = (page - 1) * size
+
+            // Wycinamy "plasterek" zadań dla bieżącej strony
+            def tasksOnPage = manifest.tasks.drop(offset).take(size)
+
+            // === Logika HATEOAS dla Paginacji ===
+            String baseUrl = req.scheme() + "://" + req.host()
+            String tasksUrl = baseUrl + "/missions/${missionId}/tasks"
+            def links = [
+                    self: [ href: tasksUrl + "?page=${page}&size=${size}" ]
+            ]
+            if (page > 1) {
+                links.prev = [ href: tasksUrl + "?page=${page - 1}&size=${size}" ]
+            }
+            if (page < totalPages) {
+                links.next = [ href: tasksUrl + "?page=${page + 1}&size=${size}" ]
+            }
+            links.first = [ href: tasksUrl + "?page=1&size=${size}" ]
+            links.last = [ href: tasksUrl + "?page=${totalPages}&size=${size}" ]
+
+            // Budujemy finalną odpowiedź
+            def response = [
+                    _links: links,
+                    page: [
+                            size: tasksOnPage.size(),
+                            totalElements: totalTasks,
+                            totalPages: totalPages,
+                            number: page
+                    ],
+                    // Osadzamy listę zadań dla tej strony w odpowiedzi
+                    _embedded: [
+                            tasks: tasksOnPage.collect { [taskId: it.taskId, status: it.status.name()] }
+                    ]
+            ]
+
             return JsonOutput.toJson(response)
         }
 
