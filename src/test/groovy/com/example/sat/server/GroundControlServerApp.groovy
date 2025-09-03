@@ -108,21 +108,10 @@ class GroundControlServerApp {
             String baseUrl = req.scheme() + "://" + req.host()
             def missionUrl = baseUrl + "/missions/${missionId}"
 
-            // === POPRAWKA 2.0: Jawne budowanie mapy dla każdego zadania ===
+            // === Jawne budowanie mapy dla każdego zadania ===
             def response = [
                     missionId: manifest.missionId,
                     status: manifest.status,
-
-                    //Już nie będziemy zwracać taska tutaj
-                    /*
-                    tasks: manifest.tasks.collect { task ->
-                        [
-                                taskId: task.taskId,
-                                // Jawnie konwertujemy Enum na jego nazwę (String)
-                                status: task.status.name()
-                        ]
-                    }, */
-
                     _links: [
                             self: [ href: missionUrl ],
                             tasks: [ href: missionUrl + "/tasks" ] // <-- NAJWAŻNIEJSZA ZMIANA
