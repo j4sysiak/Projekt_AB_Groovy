@@ -1,4 +1,3 @@
-// src/test/groovy/com/example/sat/http/SimpleHttpClientWithStubsSpec.groovy
 package com.example.sat.http
 
 import com.example.sat.test.WireMockStubs // <-- Importujemy naszą fabrykę
@@ -33,9 +32,8 @@ class SimpleHttpClientWithStubsSpec extends Specification {
         wireMockServer.resetAll()
     }
 
-
     // ===========================================
-    // ===          TEST DLA METODY GET          ===
+    // ===          TEST DLA METODY GET        ===
     // ===========================================
     def "should correctly handle a GET request configured by a stub factory"() {
         given: "the server is prepared for a successful health check"
