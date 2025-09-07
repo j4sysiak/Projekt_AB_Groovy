@@ -44,6 +44,9 @@ dependencies {
     testImplementation 'org.awaitility:awaitility-groovy:4.2.0'
     testImplementation 'com.squareup.okhttp3:mockwebserver:4.9.3'
 
+    // Główna biblioteka WireMock. Używamy wersji standalone dla Javy 8+, jest najwygodniejsza.
+    testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.35.0'
+
     // UWAGA: Usunęliśmy `junit:4.12`, `cglib` i `objenesis`,
     // ponieważ Spock 2 i Gradle 8 zarządzają tymi zależnościami same.
 }

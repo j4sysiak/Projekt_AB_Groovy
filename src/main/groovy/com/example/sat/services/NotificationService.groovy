@@ -1,4 +1,3 @@
-// src/main/groovy/com/example/sat/services/NotificationService.groovy
 package com.example.sat.services
 
 import com.example.sat.db.ISubscriptionRepository // <-- Zależność od interfejsu
