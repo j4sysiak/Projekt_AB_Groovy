@@ -36,7 +36,7 @@ class SimpleHttpClientFluentDslSpec extends Specification {
      * @param params Mapa parametrów, która MUSI zawierać klucz 'from' z konfiguracją serwera.
      * @return Odpowiedź od klienta.
      */
-    private Map get(String path, Map params) {
+    private Map toTestGetMethod(String path, Map params) {
         def serverConfig = params.from
         if (!serverConfig) {
             throw new IllegalArgumentException("`from` parameter is required, e.g., get '/path', from: serverConfig")
@@ -44,7 +44,7 @@ class SimpleHttpClientFluentDslSpec extends Specification {
 
         // Krok 1: Programujemy WireMocka na podstawie `responseTemplate`
         wireMockServer.stubFor(
-                get(urlEqualTo(path))
+                get(urlEqualTo(path))   //------------> to tu jest informasja, że testujemy get
                         .willReturn(aResponse()
                                 .withStatus(serverConfig.response.status)
                                 .withHeader("Content-Type", "application/json")
@@ -58,7 +58,7 @@ class SimpleHttpClientFluentDslSpec extends Specification {
 
 
     // ===========================================
-    // ===      TEST NAPISANY W NOWYM STYLU      ===
+    // ===      TEST NAPISANY W NOWYM STYLU    ===
     // ===========================================
     def "should allow testing GET requests with a fluent DSL syntax"() {
         given: "a server configuration described as a map"
@@ -74,7 +74,7 @@ class SimpleHttpClientFluentDslSpec extends Specification {
 
         when: "a GET request is made using the DSL"
         // To jest Twoje `Response res = get "" from server`
-        def response = get("/health", [from: server])
+        def response = toTestGetMethod("/health", [from: server])
 
         then: "the client correctly parses the status code and JSON body"
         response.statusCode == 200
