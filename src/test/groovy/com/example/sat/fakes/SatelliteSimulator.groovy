@@ -1,13 +1,13 @@
 package com.example.sat.fakes
 
-import com.example.sat.CommandModule
-import com.example.sat.SatelliteConnection
 import com.example.sat.dto.PhotoCollectionManifest
 import com.example.sat.dto.PhotoData
 import com.example.sat.dto.PhotoTaskStatus
+import com.example.sat.simulation.ISatelliteSimulator // Importujemy TYLKO jeden, nadrzędny interfejs
 
-// Ten symulator udaje zarówno moduł komend, jak i połączenie z satelitą.
-class SatelliteSimulator implements SatelliteConnection, CommandModule {
+
+// ZMIANA: Implementujemy tylko ISatelliteSimulator
+class SatelliteSimulator implements ISatelliteSimulator {
 
     // === STAN WEWNĘTRZNY ===
     double batteryLevel = 95.0

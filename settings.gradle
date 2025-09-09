@@ -1,1 +1,5 @@
+// Definiuje nazwę głównego projektu
 rootProject.name = 'Projekt_AB_Groovy'
+
+// Deklaruje, że ten projekt składa się z podprojektu (modułu) o nazwie 'rest-dsl'
+include 'rest-dsl'

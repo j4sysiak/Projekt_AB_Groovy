@@ -1,0 +1,40 @@
+plugins {
+    id 'groovy'
+    id 'java'
+}
+
+// Ten podprojekt nie tworzy głównego JAR-a, jest tylko biblioteką pomocniczą
+group 'com.example.sat'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+// Upewnijmy się, że ten moduł też jest kompilowany z Javą 11
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(11)
+    }
+}
+
+dependencies {
+    // --- Zależności Potrzebne do Skompilowania Kodu DSL ---
+
+    // 1. Rdzeń Groovy do działania samej transformacji AST
+    implementation 'org.codehaus.groovy:groovy:3.0.18'
+
+    // 2. Potrzebujemy API Spocka, bo nasza transformacja wstrzykuje metody
+    //    do klas, które dziedziczą po spock.lang.Specification.
+    //    Używamy `compileOnly`, bo nie chcemy dołączać całego Spocka
+    //    do JAR-a tego modułu - on jest potrzebny tylko w czasie kompilacji.
+    compileOnly 'org.spockframework:spock-core:2.3-groovy-3.0'
+
+    // 3. Nasz RestTestExecutor używa WireMocka, więc musimy go tu dodać
+    implementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.35.0'
+
+    // 4. Potrzebujemy też dostępu do kodu z głównego projektu!
+    //    Np. do klasy SimpleHttpClient, która powinna być w `src/main/groovy`.
+    //    Ta linia tworzy zależność od kodu produkcyjnego głównego modułu.
+    implementation project(':')
+}
