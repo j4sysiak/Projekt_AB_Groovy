@@ -18,8 +18,6 @@ class FakeRelationalDB  implements RelationalDB, IntermediateDB  {
 
     // === Metody z interfejsu RelationalDB ===
 
-    // === Metody z interfejsu RelationalDB ===
-
     @Override
     void insertPhoto(PhotoData photo) {
         def row = [

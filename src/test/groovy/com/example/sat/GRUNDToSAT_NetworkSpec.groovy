@@ -1,9 +1,11 @@
 package com.example.sat
 
+import com.example.sat.fakes.FakeRelationalDB
+import com.example.sat.fakes.HttpServerFactory
 import com.example.sat.fakes.SatelliteSimulator
+import com.example.sat.http.SimpleHttpClient
 import com.example.sat.server.GroundControlServerApp
 import com.example.sat.server.SatelliteSimulatorServer
-import com.example.sat.http.SimpleHttpClient
 import spock.lang.Specification
 
 class GRUNDToSAT_NetworkSpec extends Specification {
@@ -13,15 +15,24 @@ class GRUNDToSAT_NetworkSpec extends Specification {
     SimpleHttpClient grundClient
 
     def setup() {
-        simulator = new SatelliteSimulator()
-        satServer = new SatelliteSimulatorServer(simulator, "")
+// 1. Stwórz testowe implementacje zależności
+        simulator = new SatelliteSimulator() // Nasz "fejk" symulatora
+        def satHttpServer = HttpServerFactory.create()
+        def grundDb = new FakeRelationalDB()
+        def grundHttpServer = HttpServerFactory.create()
+
+        // 2. Stwórz i uruchom SatelliteSimulatorServer, wstrzykując jego zależności
+        satServer = new SatelliteSimulatorServer(simulator, satHttpServer)
         satServer.start(0)
         def satServerUrl = "http://localhost:${satServer.getPort()}"
 
-        grundServer = new GroundControlServerApp()
+        // 3. Stwórz i uruchom GroundControlServerApp, wstrzykując jego zależności
+        grundServer = new GroundControlServerApp(grundDb, grundHttpServer)
+        // Przekazujemy mu URL do serwera satelity, aby wiedział, z kim ma rozmawiać
         grundServer.start(0, satServerUrl)
         def grundServerUrl = "http://localhost:${grundServer.getPort()}"
 
+        // 4. Stwórz klienta do sterowania serwerem GRUND
         grundClient = new SimpleHttpClient(grundServerUrl)
     }
 

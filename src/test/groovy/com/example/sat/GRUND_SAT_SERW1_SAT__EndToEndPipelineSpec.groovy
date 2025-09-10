@@ -24,7 +24,8 @@ class GRUND_SAT_SERW1_SAT__EndToEndPipelineSpec extends Specification {
         // Kolejność jest ważna, bo serwery zależą od siebie nawzajem.
 
         // 1. Uruchom serwer docelowy (GRUND), ale na razie bez wiedzy o SAT
-        grundServer = new GroundControlServerApp(); grundServer.start(0, "")
+        grundServer = new GroundControlServerApp();
+        grundServer.start(0, "")
         def grundServerUrl = "http://localhost:${grundServer.getPort()}"
 
         // 2. Uruchom serwer pośredniczący, który wie gdzie jest GRUND

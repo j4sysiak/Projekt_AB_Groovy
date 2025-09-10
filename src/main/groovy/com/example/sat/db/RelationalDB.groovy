@@ -3,7 +3,7 @@ package com.example.sat.db
 import com.example.sat.dto.PhotoData
 import com.example.sat.dto.SubscriptionRequest
 
-interface RelationalDB {
+interface RelationalDB extends ISubscriptionRepository {
     // Metody do obsługi zdjęć
     void insertPhoto(PhotoData photo)
     List<Map> getArchivedPhotos()

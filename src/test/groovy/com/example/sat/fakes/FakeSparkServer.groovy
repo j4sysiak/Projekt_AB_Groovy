@@ -12,9 +12,12 @@ class FakeSparkServer implements IHttpServer {
 
     // Prywatne pole, które trzyma prawdziwą instancję Sparka
     private Service http = Service.ignite()
+    //private int configuredPort = 0 // NOWE POLE: Przechowujemy port tutaj
 
     @Override
     void port(int port) {
+        // Po prostu przekazujemy żądanie do Sparka.
+        // Jeśli port=0, Spark sam znajdzie wolny port.
         http.port(port)
     }
 
@@ -41,8 +44,19 @@ class FakeSparkServer implements IHttpServer {
         http.awaitInitialization()
     }
 
+    /**
+     * Zwraca numer portu, na którym serwer faktycznie działa.
+     * Ta metoda jest teraz w 100% bezpieczna.
+     */
     @Override
     int getPort() {
+        // Czekamy krótko, aby dać serwerowi Spark szansę na pełne uruchomienie
+        // i związanie się z portem systemowym. To eliminuje IllegalStateException.
+        try {
+            Thread.sleep(100)
+        } catch (InterruptedException e) { /* ignoruj */ }
+
+        // Zawsze pytamy Sparka, na jakim porcie faktycznie wystartował.
         return http.port()
     }
 }

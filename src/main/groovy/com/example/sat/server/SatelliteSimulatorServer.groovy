@@ -29,10 +29,14 @@ class SatelliteSimulatorServer {
     void start(int port) {
         println "SERVER (SAT): Starting Satellite Simulator Server on port ${port}..."
         // Konfigurujemy i uruchamiamy serwer HTTP, który został wstrzyknięty
-        http.port(port)
+        this.http.port(port)
+
         defineEndpoints()
+
         http.awaitInitialization()
-        println "SERVER (SAT): Satellite Simulator Server started on port ${http.port()}."
+
+        // ZMIANA: Użyjmy portu, który już znamy, zamiast pytać serwer
+        println "SERVER (GRUND): Started on port ${port}."
     }
 
     // Prywatna metoda grupująca wszystkie definicje endpointów dla porządku
@@ -122,9 +126,7 @@ class SatelliteSimulatorServer {
         println "SERVER (SAT): Server stopped."
     }
 
-    int getPort() {
-        return http.port()
-    }
+    int getPort() { return http.getPort() }
 
     void updateDownlinkTarget(String url) {
         this.downlinkTargetUrl = url

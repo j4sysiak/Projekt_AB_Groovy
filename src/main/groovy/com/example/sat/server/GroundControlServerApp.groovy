@@ -53,16 +53,22 @@ class GroundControlServerApp {
                 }
             }
         } as INotificationClient
+
+        // this.database jest typu RelationalDB
+        // notificationClient jest typu INotificationClient
         this.notificationService = new NotificationService(this.database, notificationClient)
 
         // --- Definicja wszystkich endpointów API ---
         defineEndpoints()
 
         http.awaitInitialization()
-        println "SERVER (GRUND): Started on port ${http.port()}."
+
+        // ZMIANA: Użyjmy portu, który już znamy, zamiast pytać serwer
+        println "SERVER (GRUND): Started on port ${port}."
     }
 
     private void defineEndpoints() {
+
         http.get("/health") { req, res ->
             res.type("application/json")
             if (forceUnhealthy) {
@@ -256,7 +262,7 @@ class GroundControlServerApp {
     // === Metody Pomocnicze i Zarządzające ===
 
     void stop() { http?.stop() }
-    int getPort() { return http.port() }
+    int getPort() { return http.getPort() }
     void forceHealthStatus(boolean isUnhealthy) { this.forceUnhealthy = isUnhealthy }
 
     // Metoda do aktualizacji URL-a klienta SAT po starcie
