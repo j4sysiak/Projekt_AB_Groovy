@@ -1,10 +1,13 @@
 package com.example.sat
 
+import com.example.sat.fakes.FakeFileSystem
+import com.example.sat.fakes.FakeRelationalDB
+import com.example.sat.fakes.HttpServerFactory
 import com.example.sat.fakes.SatelliteSimulator
+import com.example.sat.http.SimpleHttpClient
 import com.example.sat.server.GroundControlServerApp
 import com.example.sat.server.IntermediateServerApp
 import com.example.sat.server.SatelliteSimulatorServer
-import com.example.sat.http.SimpleHttpClient
 import spock.lang.Specification
 import spock.util.concurrent.PollingConditions
 
@@ -18,29 +21,36 @@ class GRUND_SAT_SERW1_SAT__EndToEndPipelineSpec extends Specification {
     SatelliteSimulator simulator
 
     def setup() {
+        // 1. Stwórz wszystkie "fałszywe" komponenty
         simulator = new SatelliteSimulator()
+        def grundDb = new FakeRelationalDB()
+        def intermediateDb = new FakeRelationalDB()
+        def intermediateFs = new FakeFileSystem()
+        def grundHttp = HttpServerFactory.create()
+        def intermediateHttp = HttpServerFactory.create()
+        def satHttp = HttpServerFactory.create()
 
-        // === POPRAWIONA KONFIGURACJA SERWERÓW ===
-        // Kolejność jest ważna, bo serwery zależą od siebie nawzajem.
+        // 2. Stwórz i uruchom serwery, które nie mają zależności od innych
+        //    W tym przypadku, wszystkie mogą startować niezależnie,
+        //    a połączymy je w następnym kroku.
 
-        // 1. Uruchom serwer docelowy (GRUND), ale na razie bez wiedzy o SAT
-        grundServer = new GroundControlServerApp();
-        grundServer.start(0, "")
-        def grundServerUrl = "http://localhost:${grundServer.getPort()}"
-
-        // 2. Uruchom serwer pośredniczący, który wie gdzie jest GRUND
-        intermediateServer = new IntermediateServerApp(); intermediateServer.start(0, grundServerUrl)
-        def intermediateServerUrl = "http://localhost:${intermediateServer.getPort()}"
-
-        // 3. Uruchom serwer satelity, który wie gdzie jest SERW1
-        satServer = new SatelliteSimulatorServer(simulator, intermediateServerUrl); satServer.start(0)
+        satServer = new SatelliteSimulatorServer(simulator, satHttp)
+        satServer.start(0)
         def satServerUrl = "http://localhost:${satServer.getPort()}"
 
-        // 4. TERAZ zaktualizuj GRUND, aby wiedział, gdzie jest SAT
-        // To jest kluczowe, bo dopiero teraz znamy satServerUrl
-        grundServer.updateSatClientUrl(satServerUrl)
+        grundServer = new GroundControlServerApp(grundDb, grundHttp)
+        grundServer.start(0, satServerUrl)
+        def grundServerUrl = "http://localhost:${grundServer.getPort()}"
 
-        // 5. Stwórz klientów do komunikacji z serwerami
+        intermediateServer = new IntermediateServerApp(intermediateHttp, intermediateFs, intermediateDb)
+        intermediateServer.start(0, grundServerUrl)
+        def intermediateServerUrl = "http://localhost:${intermediateServer.getPort()}"
+
+        // === 3. KLUCZOWY KROK: Skonfiguruj połączenia między serwerami ===
+        // Powiedz serwerowi satelity, gdzie ma wysyłać dane z downlinku.
+        satServer.updateDownlinkTarget(intermediateServerUrl)
+
+        // 4. Stwórz klientów do komunikacji
         grundClient = new SimpleHttpClient(grundServerUrl)
         intermediateClient = new SimpleHttpClient(intermediateServerUrl)
         satClient = new SimpleHttpClient(satServerUrl)
@@ -78,12 +88,14 @@ class GRUND_SAT_SERW1_SAT__EndToEndPipelineSpec extends Specification {
             assert simulator.activeManifest.tasks.size() == 120
             assert simulator.activeManifest.tasks.every { it.status == com.example.sat.dto.PhotoTaskStatus.PENDING }
         }
+        Thread.sleep(500) // Pół sekundy powinno w zupełności wystarczyć
 
         // === ETAP 2: Wykonanie misji i downlink ===
         when: "SAT executes the mission and downlinks data in batches"
         simulator.simulatePhotoTakingProcess()
         3.times {
             satClient.sendGenericPost("/downlink", [:])
+            Thread.sleep(500) // Daj pół sekundy na pełne przetworzenie jednego downlinku
         }
 
         then: "SERW1 has received all the files"

@@ -29,7 +29,9 @@ class IntermediateServerApp {
         http.port(port)
         defineEndpoints()
         http.awaitInitialization()
-        println "SERVER (SERW1): Intermediate Server started on port ${http.port()}."
+
+        // ZMIANA: Użyjmy portu, który już znamy, zamiast pytać serwer
+        println "SERVER (SERW1): Intermediate Server started on port ${port}."
     }
 
     private void defineEndpoints() {
@@ -81,7 +83,7 @@ class IntermediateServerApp {
     }
 
     void stop() { http?.stop() }
-    int getPort() { return http.port() }
+    int getPort() { return http.getPort() }
     void forceHealthStatus(boolean isUnhealthy) { this.unhealthy = isUnhealthy }
 
     void updateGrundControlUrl(String groundControlServerUrl) {
