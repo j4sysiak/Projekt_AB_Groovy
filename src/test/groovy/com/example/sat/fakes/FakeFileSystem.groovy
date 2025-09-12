@@ -1,35 +1,46 @@
 package com.example.sat.fakes
 
 import com.example.sat.storage.FileSystem
+import groovy.transform.Synchronized
 
-class FakeFileSystem implements FileSystem{
-    // Klucz to nazwa pliku, wartość to zawartość (JSON jako string)
-    final Map<String, String> files = [:]
+/**
+ * Testowa implementacja systemu plików, która jest w pełni bezpieczna wątkowo.
+ * Używa @Synchronized na każdej metodzie, aby zapewnić, że wszystkie operacje
+ * na mapie `storedFiles` są widoczne między wątkami.
+ */
+class FakeFileSystem implements FileSystem {
 
+    private final Map<String, String> storedFiles = [:]
+
+    @Synchronized
     @Override
-    void saveFile(String path, String content) {
-        println "FILE_SYSTEM: Saving file to ${path}"
-        files[path] = content
+    void saveFile(String name, String content) {
+        println "FILE_SYSTEM: Saving file to ${name}"
+        storedFiles[name] = content
     }
 
+    @Synchronized
     @Override
     Map<String, String> readAllFiles() {
-        return new HashMap<>(files) // Zwracamy kopię
+        return new LinkedHashMap<>(storedFiles)
     }
 
+    @Synchronized
     @Override
-    void deleteFile(String path) {
-        println "FILE_SYSTEM: Deleting file ${path}"
-        files.remove(path)
+    void deleteFile(String name) {
+        storedFiles.remove(name)
     }
 
+    @Synchronized
     @Override
     int getFileCount() {
-        return 0
+        // Zwracamy RZECZYWISTY rozmiar mapy, a nie zahardkodowane 0.
+        return storedFiles.size()
     }
 
+    @Synchronized
     @Override
     void clear() {
-
+        storedFiles.clear()
     }
 }

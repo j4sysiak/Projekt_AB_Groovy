@@ -116,10 +116,13 @@ class IntermediateServerApp {
     }
 
     private boolean forwardDataToGroundControl() {
-        if (!grundClient) return false
+        if (!grundClient) return false // Sprawdzenie 1
+
+        // Sprawdzenie 2: Health Check
         def healthResponse = grundClient.getData("/health")
         if (healthResponse.statusCode != 200) return false
 
+        // Sprawdzenie 3: Wysłanie danych
         def photosToForward = database.getArchivedPhotos()
         if (photosToForward) {
             def response = grundClient.sendGenericPost("/data/ingest", photosToForward)
@@ -127,7 +130,7 @@ class IntermediateServerApp {
                 database.clearPhotos()
                 return true
             }
-            return false
+            return false // <-- PRAWDOPODOBNIE TUTAJ JESTEŚMY
         }
         return true
     }

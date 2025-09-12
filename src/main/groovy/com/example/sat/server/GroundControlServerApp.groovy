@@ -235,24 +235,55 @@ class GroundControlServerApp {
         http.post("/data/ingest") { req, res ->
             res.type("application/json")
             try {
-                def photos = (new JsonSlurper().parseText(req.body()) as List<Map>).collect { new PhotoData(it) }
-                if (photos.isEmpty()) {
-                    res.status(400)
-                    return JsonOutput.toJson([status: "ERROR", message: "Received empty photo list."])
-                }
+                def rawList = new JsonSlurper().parseText(req.body()) as List<Map>
 
-                photos.each { database.insertPhoto(it) }
-
-                def missionId = photos.first().missionId
-                if (missionId && isMissionComplete(missionId)) {
-                    notificationService.publishEvent(
-                            "MISSION_COMPLETED", missionId,
-                            [photoCount: getPhotoCountForMission(missionId), message: "All data processed."]
+                // ZMIANA: Zamiast new PhotoData(it), tworzymy obiekt jawnie
+                def photos = rawList.collect { map ->
+                    new PhotoData(
+                            photoId:   map.photoId,
+                            missionId: map.missionId,
+                            timestamp: map.timestamp,
+                            quality:   map.quality,
+                            content:   map.content
                     )
                 }
+
+                println "==== GRUND DEBUG /data/ingest: START ===="
+                def body = req.body()
+                println "DEBUG: Otrzymane ciało: ${body}"
+
+                //def photos = (new JsonSlurper().parseText(body) as List<Map>).collect { new PhotoData(it) }
+                println "DEBUG: Sparsowano ${photos.size()} obiektów PhotoData."
+
+                photos.each { database.insertPhoto(it) }
+                println "DEBUG: Zapisano zdjęcia do bazy."
+
+                def missionId = photos.first()?.missionId
+                println "DEBUG: missionId z pierwszej fotki: ${missionId}"
+
+                if (missionId) {
+                    println "DEBUG: Sprawdzam, czy misja jest kompletna. Mapa manifestów ma rozmiar: ${missionManifests.size()}"
+                    def manifestExists = missionManifests.containsKey(missionId)
+                    println "DEBUG: Czy manifest dla ${missionId} istnieje w mapie? ${manifestExists}"
+
+                    if (isMissionComplete(missionId)) {
+                        println "GRUND: Mission ${missionId} is complete. Publishing event."
+                        notificationService.publishEvent(
+                                "MISSION_COMPLETED", missionId,
+                                [photoCount: getPhotoCountForMission(missionId), message: "All data processed."]
+                        )
+                    } else {
+                        println "DEBUG: isMissionComplete zwróciło false."
+                    }
+                }
+                println "==== GRUND DEBUG /data/ingest: KOŃCZĘ SUKCESEM ===="
                 res.status(202)
                 return JsonOutput.toJson([status: "DATA_ACCEPTED", ingestedCount: photos.size()])
             } catch (Exception e) {
+                println "==== GRUND DEBUG /data/ingest: ZŁAPANO WYJĄTEK! ===="
+                println "Błąd: ${e.class.name} - ${e.message}"
+                e.printStackTrace(new PrintWriter(System.out))
+                println "==== GRUND DEBUG /data/ingest: KONIEC Z BŁĘDEM ===="
                 res.status(500)
                 return JsonOutput.toJson([status: "ERROR", message: e.message])
             }

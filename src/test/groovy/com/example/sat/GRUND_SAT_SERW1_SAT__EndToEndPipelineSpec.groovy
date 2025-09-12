@@ -21,7 +21,7 @@ class GRUND_SAT_SERW1_SAT__EndToEndPipelineSpec extends Specification {
     SatelliteSimulator simulator
 
     def setup() {
-        // 1. Stwórz wszystkie "fałszywe" komponenty
+        // 1. Stwórz wszystkie "fałszywe" komponenty, których będziemy potrzebować
         simulator = new SatelliteSimulator()
         def grundDb = new FakeRelationalDB()
         def intermediateDb = new FakeRelationalDB()
@@ -30,10 +30,7 @@ class GRUND_SAT_SERW1_SAT__EndToEndPipelineSpec extends Specification {
         def intermediateHttp = HttpServerFactory.create()
         def satHttp = HttpServerFactory.create()
 
-        // 2. Stwórz i uruchom serwery, które nie mają zależności od innych
-        //    W tym przypadku, wszystkie mogą startować niezależnie,
-        //    a połączymy je w następnym kroku.
-
+        // 2. Stwórz i uruchom serwery, wstrzykując ich zależności
         satServer = new SatelliteSimulatorServer(simulator, satHttp)
         satServer.start(0)
         def satServerUrl = "http://localhost:${satServer.getPort()}"
@@ -46,8 +43,7 @@ class GRUND_SAT_SERW1_SAT__EndToEndPipelineSpec extends Specification {
         intermediateServer.start(0, grundServerUrl)
         def intermediateServerUrl = "http://localhost:${intermediateServer.getPort()}"
 
-        // === 3. KLUCZOWY KROK: Skonfiguruj połączenia między serwerami ===
-        // Powiedz serwerowi satelity, gdzie ma wysyłać dane z downlinku.
+        // 3. Dokończ konfigurację połączeń
         satServer.updateDownlinkTarget(intermediateServerUrl)
 
         // 4. Stwórz klientów do komunikacji
@@ -61,6 +57,7 @@ class GRUND_SAT_SERW1_SAT__EndToEndPipelineSpec extends Specification {
         intermediateServer?.stop()
         satServer?.stop()
     }
+
 
     def "should process a large photo collection mission in batches through the entire pipeline"() {
         given: "a mission to collect photos is requested"
