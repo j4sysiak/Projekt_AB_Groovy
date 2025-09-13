@@ -10,6 +10,7 @@ import com.example.sat.server.IntermediateServerApp
 import com.example.sat.server.SatelliteSimulatorServer
 import spock.lang.Specification
 import spock.util.concurrent.PollingConditions
+import com.example.sat.dto.PhotoTaskStatus
 
 class GRUND_SAT_SERW1_SAT__EndToEndPipelineSpec extends Specification {
     GroundControlServerApp grundServer
@@ -83,7 +84,7 @@ class GRUND_SAT_SERW1_SAT__EndToEndPipelineSpec extends Specification {
         conditions.eventually {
             assert simulator.activeManifest != null
             assert simulator.activeManifest.tasks.size() == 120
-            assert simulator.activeManifest.tasks.every { it.status == com.example.sat.dto.PhotoTaskStatus.PENDING }
+            assert simulator.activeManifest.tasks.every { it.status == PhotoTaskStatus.PENDING }
         }
         Thread.sleep(500) // Pół sekundy powinno w zupełności wystarczyć
 

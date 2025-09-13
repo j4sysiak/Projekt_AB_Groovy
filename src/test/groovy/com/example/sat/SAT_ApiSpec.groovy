@@ -1,5 +1,6 @@
 package com.example.sat
 
+import com.example.sat.fakes.HttpServerFactory
 import com.example.sat.fakes.SatelliteSimulator
 import com.example.sat.server.SatelliteSimulatorServer
 import com.example.sat.http.SimpleHttpClient
@@ -13,9 +14,18 @@ class SAT_ApiSpec extends Specification {
     @Shared SatelliteSimulator simulator
 
     def setupSpec() {
+        // === ZMIANA: Pełne wstrzykiwanie zależności ===
+
+        // 1. Stwórz testowe implementacje zależności
         simulator = new SatelliteSimulator()
-        server = new SatelliteSimulatorServer(simulator, "")
-        server.start(0)
+        def satHttp = HttpServerFactory.create()
+
+        // 2. Stwórz i uruchom SatelliteSimulatorServer, wstrzykując zależności
+        //    Nie przekazujemy downlinkTargetUrl, bo nie jest potrzebny w tym teście.
+        server = new SatelliteSimulatorServer(simulator, satHttp)
+        server.start(0) // Uruchom na losowym wolnym porcie
+
+        // 3. Stwórz klienta do komunikacji
         def serverUrl = "http://localhost:${server.getPort()}"
         client = new SimpleHttpClient(serverUrl)
     }
@@ -24,6 +34,7 @@ class SAT_ApiSpec extends Specification {
         server?.stop()
     }
 
+    // Resetujemy stan symulatora przed każdym testem
     def cleanup() {
         simulator.resetState()
     }

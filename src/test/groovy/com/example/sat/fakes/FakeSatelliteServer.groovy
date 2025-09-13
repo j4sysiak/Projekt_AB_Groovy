@@ -1,10 +1,8 @@
 package com.example.sat.fakes
 
-import com.example.sat.dto.CommandRequest
+
 import com.example.sat.dto.CommandResponse
-import com.example.sat.dto.TakePhotosRequest
 import groovy.json.JsonOutput
-import groovy.json.JsonSlurper
 
 // Symuluje serwer na pokładzie satelity, który odbiera komendy   <-----------    od Ground Control Server
 class FakeSatelliteServer {

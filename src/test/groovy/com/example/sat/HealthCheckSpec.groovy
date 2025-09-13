@@ -1,5 +1,8 @@
 package com.example.sat
 
+import com.example.sat.fakes.FakeFileSystem
+import com.example.sat.fakes.FakeRelationalDB
+import com.example.sat.fakes.HttpServerFactory
 import com.example.sat.fakes.SatelliteSimulator
 import com.example.sat.server.IntermediateServerApp
 import com.example.sat.server.SatelliteSimulatorServer
@@ -9,6 +12,7 @@ import com.example.sat.dto.PhotoTask
 import com.example.sat.dto.PhotoCollectionManifest
 import com.example.sat.dto.PhotoData
 import spock.lang.Specification
+import spock.util.concurrent.PollingConditions
 
 class HealthCheckSpec extends Specification {
 
@@ -18,18 +22,31 @@ class HealthCheckSpec extends Specification {
     SimpleHttpClient satClient
 
     def setup() {
-        // Serwer pośredniczący, do którego będziemy wysyłać dane
-        intermediateServer = new IntermediateServerApp()
-        intermediateServer.start(0, "") // Adres GRUND nie jest potrzebny
+        // === ZMIANA: Pełne wstrzykiwanie zależności ===
+
+        // 1. Stwórz wszystkie "fałszywe" komponenty
+        simulator = new SatelliteSimulator()
+
+        def intermediateDb = new FakeRelationalDB()
+        def intermediateFs = new FakeFileSystem()
+
+        def intermediateHttp = HttpServerFactory.create()
+        def satHttp = HttpServerFactory.create()
+
+        // 2. Stwórz i uruchom serwery, wstrzykując ich zależności
+
+        // Serwer pośredniczący nie potrzebuje adresu GRUND w tym teście
+        intermediateServer = new IntermediateServerApp(intermediateHttp, intermediateFs, intermediateDb)
+        intermediateServer.start(0, "")
         def intermediateServerUrl = "http://localhost:${intermediateServer.getPort()}"
 
-        // Symulator i serwer satelity, który wie, gdzie jest serwer pośredniczący
-        simulator = new SatelliteSimulator()
-        satServer = new SatelliteSimulatorServer(simulator, intermediateServerUrl)
+        // Serwer satelity musi wiedzieć, gdzie jest serwer pośredniczący
+        satServer = new SatelliteSimulatorServer(simulator, satHttp)
         satServer.start(0)
-        def satServerUrl = "http://localhost:${satServer.getPort()}"
+        satServer.updateDownlinkTarget(intermediateServerUrl) // Konfigurujemy cel po starcie
 
-        // Klient do komunikacji z serwerem satelity
+        // 3. Stwórz klienta do komunikacji z serwerem satelity
+        def satServerUrl = "http://localhost:${satServer.getPort()}"
         satClient = new SimpleHttpClient(satServerUrl)
     }
 
@@ -42,8 +59,8 @@ class HealthCheckSpec extends Specification {
 
     def "should successfully downlink data when intermediate server is healthy"() {
         given: "the satellite has one photo ready and the intermediate server is healthy"
-        // Upewnijmy się, że serwer pośredniczący jest zdrowy
         intermediateServer.forceHealthStatus(false)
+        def conditions = new PollingConditions(timeout: 5)
 
         // Przygotowujemy spójne dane w symulatorze
         def taskId = "HEALTHY-TASK-01"
@@ -53,11 +70,8 @@ class HealthCheckSpec extends Specification {
         simulator.activeManifest = new PhotoCollectionManifest(missionId: missionId, tasks: [task])
 
         simulator.photoStorage[taskId] = new PhotoData(
-                photoId: taskId,
-                missionId: missionId,
-                content: 'Healthy test data',
-                timestamp: System.currentTimeMillis(),
-                quality: 95 // POPRAWKA: Używamy liczby
+                photoId: taskId, missionId: missionId,
+                content: 'Healthy test data', timestamp: System.currentTimeMillis(), quality: 95
         )
 
         when: "the downlink is triggered"
@@ -65,16 +79,14 @@ class HealthCheckSpec extends Specification {
 
         then: "the operation succeeds and data is transferred"
         response.statusCode == 200
-        // Czekamy chwilę, bo zapis do pliku może być asynchroniczny
-        Thread.sleep(500)
-        intermediateServer.getFileSystemFileCount() == 1
+        // Używamy "cierpliwej" asercji zamiast Thread.sleep
+        conditions.eventually {
+            assert intermediateServer.getFileSystemFileCount() == 1
+        }
     }
-
-
 
     def "should abort downlink when intermediate server is unhealthy"() {
         given: "the satellite has one photo ready but the intermediate server is unhealthy"
-        // Ustawiamy serwer pośredniczący na "niezdrowy"
         intermediateServer.forceHealthStatus(true)
 
         // Przygotowujemy spójne dane w symulatorze
@@ -84,21 +96,16 @@ class HealthCheckSpec extends Specification {
         def task = new PhotoTask(taskId: taskId, status: PhotoTaskStatus.TAKEN_AND_QUEUED)
         simulator.activeManifest = new PhotoCollectionManifest(missionId: missionId, tasks: [task])
 
-        // POPRAWKA: Używamy spójnych ID i kompletnych danych
         simulator.photoStorage[taskId] = new PhotoData(
-                photoId: taskId,
-                missionId: missionId,
-                content: 'Unhealthy test data',
-                timestamp: System.currentTimeMillis(),
-                quality: 98
+                photoId: taskId, missionId: missionId,
+                content: 'Unhealthy test data', timestamp: System.currentTimeMillis(), quality: 98
         )
 
         when: "the downlink is triggered"
         def response = satClient.sendGenericPost("/downlink", [:])
 
         then: "the operation fails and no data is transferred"
-        // Oczekujemy, że serwer satelity zwróci błąd, bo nie mógł dostarczyć danych
-        response.statusCode == 502 // Bad Gateway - to jest odpowiedni status
+        response.statusCode == 502
 
         // Upewniamy się, że dane nie zostały usunięte z satelity
         simulator.photoStorage.size() == 1

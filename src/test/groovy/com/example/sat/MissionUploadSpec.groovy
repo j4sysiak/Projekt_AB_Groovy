@@ -1,10 +1,13 @@
 package com.example.sat
 
+import com.example.sat.fakes.FakeRelationalDB
+import com.example.sat.fakes.HttpServerFactory
 import com.example.sat.fakes.SatelliteSimulator
 import com.example.sat.http.SimpleHttpClient
 import com.example.sat.server.GroundControlServerApp
 import com.example.sat.server.SatelliteSimulatorServer
 import spock.lang.Specification
+import spock.util.concurrent.PollingConditions
 
 class MissionUploadSpec extends Specification {
 
@@ -14,15 +17,25 @@ class MissionUploadSpec extends Specification {
     SimpleHttpClient grundClient
 
     def setup() {
+        // === ZMIANA: Pełne wstrzykiwanie zależności ===
+
+        // 1. Stwórz testowe implementacje zależności
         simulator = new SatelliteSimulator()
-        satServer = new SatelliteSimulatorServer(simulator, "")
+        def grundDb = new FakeRelationalDB()
+        def grundHttp = HttpServerFactory.create()
+        def satHttp = HttpServerFactory.create()
+
+        // 2. Stwórz i uruchom SatelliteSimulatorServer
+        satServer = new SatelliteSimulatorServer(simulator, satHttp)
         satServer.start(0)
         def satServerUrl = "http://localhost:${satServer.getPort()}"
 
-        grundServer = new GroundControlServerApp()
-        grundServer.start(0, satServerUrl)
+        // 3. Stwórz i uruchom GroundControlServerApp
+        grundServer = new GroundControlServerApp(grundDb, grundHttp)
+        grundServer.start(0, satServerUrl) // Przekazujemy URL do serwera satelity
         def grundServerUrl = "http://localhost:${grundServer.getPort()}"
 
+        // 4. Stwórz klienta do sterowania serwerem GRUND
         grundClient = new SimpleHttpClient(grundServerUrl)
     }
 
@@ -31,10 +44,10 @@ class MissionUploadSpec extends Specification {
         satServer?.stop()
     }
 
-    // ZMIANA: Nazwa i logika testu zostały w pełni przepisane, aby odzwierciedlały nowy proces
     def "should allow client to create, accept, and upload a mission"() {
         given: "a request to collect 5 photos"
         def missionRequest = [photoCount: 5]
+        def conditions = new PollingConditions(timeout: 5)
 
         // --- ETAP 1: Tworzenie Misji ---
         when: "the mission request is sent to the ground control server"
@@ -63,12 +76,12 @@ class MissionUploadSpec extends Specification {
         uploadResponse.json.status == "OK"
 
         and: "the satellite simulator has stored the correct manifest"
-        // Czekamy chwilę na asynchroniczną komunikację sieciową
-        Thread.sleep(1000)
-
-        simulator.activeManifest != null
-        simulator.activeManifest.missionId == missionId
-        simulator.activeManifest.status == "UPLOADED" // Sprawdzamy finalny status na satelicie
-        simulator.activeManifest.tasks.size() == 5
+        // Używamy "cierpliwej" asercji zamiast Thread.sleep
+        conditions.eventually {
+            assert simulator.activeManifest != null
+            assert simulator.activeManifest.missionId == missionId
+            assert simulator.activeManifest.status == "UPLOADED"
+            assert simulator.activeManifest.tasks.size() == 5
+        }
     }
 }

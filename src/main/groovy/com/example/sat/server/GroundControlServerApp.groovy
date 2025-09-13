@@ -32,10 +32,21 @@ class GroundControlServerApp {
     private Map<String, PhotoCollectionManifest> missionManifests = [:]
     private boolean forceUnhealthy = false
 
-    // === GŁÓWNY KONSTRUKTOR (Dependency Injection) ===
+    // === GŁÓWNY KONSTRUKTOR APLIKACYJNY ===
     GroundControlServerApp(RelationalDB database, IHttpServer httpServer) {
         this.database = database
         this.http = httpServer
+        // Inicjalizujemy pustą mapę, jeśli nie została podana
+        this.missionManifests = [:]
+    }
+
+    // === KONSTRUKTOR TESTOWY, KTÓREGO BRAKUJE ===
+    // Pozwala on testom na wstrzyknięcie własnej, współdzielonej mapy manifestów.
+    GroundControlServerApp(RelationalDB database, IHttpServer httpServer, Map missionManifests) {
+        // Wywołujemy główny konstruktor
+        this(database, httpServer)
+        // Nadpisujemy mapę tą, którą otrzymaliśmy z testu
+        this.missionManifests = missionManifests
     }
 
     void start(int port, String satelliteServerUrl) {

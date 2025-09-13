@@ -2,8 +2,6 @@ package com.example.sat
 
 import com.example.sat.fakes.*
 
-// Importujemy wszystkie nasze niezawodne fejki
-
 class DataPipelineSpec extends SomeBaseTest { // Dziedziczymy, aby mieć dostęp do SYSTEM_CONFIGS
 
     //DataPipelineSpec() {}
@@ -11,7 +9,6 @@ class DataPipelineSpec extends SomeBaseTest { // Dziedziczymy, aby mieć dostęp
     def "should successfully flow data from satellite, through intermediate server SERW1, to ground control"() {
         given: "a fully interconnected system of simulated servers and fakes"
         def satelliteId = "SAT-PIPELINE-01"
-       // def config = SYSTEM_CONFIGS["ALPHA"]
 
         // === ETAP 1: Budowa Komponentów ===
 
@@ -81,8 +78,8 @@ class DataPipelineSpec extends SomeBaseTest { // Dziedziczymy, aby mieć dostęp
         jobRepository.successJobs.contains(satelliteId)
 
         // Serwer pośredniczący przetworzył pliki i jego magazyn jest pusty, a baza danych pełna
-        intermediateServer.fileSystem.files.isEmpty()
-        intermediateServer.database.photoTable.size() == 1
+        intermediateServer.fileSystem.getFileCount() == 0
+        intermediateServer.database.getPhotoCount() == 1
 
         // System naziemny otrzymał finalne dane
         groundServer.receivedPhotos.size() == 1
