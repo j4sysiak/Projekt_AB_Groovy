@@ -4,6 +4,8 @@ import com.example.sat.dto.PhotoCollectionManifest
 import com.example.sat.dto.PhotoTask
 import com.example.sat.dto.PhotoTaskStatus
 import com.example.sat.dto.SubscriptionRequest
+import com.example.sat.fakes.FakeRelationalDB
+import com.example.sat.fakes.HttpServerFactory
 import com.example.sat.http.SimpleHttpClient
 import com.example.sat.server.GroundControlServerApp
 import groovy.json.JsonSlurper
@@ -17,85 +19,63 @@ class SubscriptionNotificationUsingHATEOSSpec extends Specification {
 
     @Shared GroundControlServerApp grundServer
     @Shared SimpleHttpClient grundClient
-
-    // ZMIANA: Zamiast drugiej instancji naszej aplikacji, używamy dedykowanego MockWebServer
     @Shared MockWebServer webhookReceiverServer
-
+    @Shared Map<String, PhotoCollectionManifest> missionManifests
 
     def setupSpec() {
-        // 1. Uruchom serwer GRUND
-        grundServer = new GroundControlServerApp()
-        grundServer.start(0, "") // Nie potrzebuje satelity
-        grundClient = new SimpleHttpClient("http://localhost:${grundServer.getPort()}")
+        // === ZMIANA: Pełne wstrzykiwanie zależności ===
 
-        // 2. Stwórz i uruchom MockWebServer
+        // 1. Stwórz testowe implementacje zależności
+        def fakeDb = new FakeRelationalDB()
+        def fakeHttpServer = HttpServerFactory.create()
+        missionManifests = [:] // Inicjalizujemy mapę, którą będziemy współdzielić
+
+        // 2. Stwórz i uruchom GroundControlServerApp, używając konstruktora testowego
+        grundServer = new GroundControlServerApp(fakeDb, fakeHttpServer, missionManifests)
+        grundServer.start(0, "")
+        def grundServerUrl = "http://localhost:${grundServer.getPort()}"
+        grundClient = new SimpleHttpClient(grundServerUrl)
+
+        // 3. Stwórz i uruchom MockWebServer
         webhookReceiverServer = new MockWebServer()
-        webhookReceiverServer.start() // Uruchomi się na losowym, wolnym porcie
+        webhookReceiverServer.start()
     }
 
     def cleanupSpec() {
         grundServer?.stop()
-        // ZMIANA: Zamykamy MockWebServer za pomocą jego metody shutdown()
         webhookReceiverServer?.shutdown()
     }
 
     def cleanup() {
         grundServer.resetState()
-        // Nie musimy już czyścić listy, bo MockWebServer sam zarządza stanem
     }
 
-    // ZMIANA: Zmieniamy nazwę testu, aby odzwierciedlała nową logikę
     def "should discover subscription endpoint via HATEOAS and receive a notification"() {
         given: "a mission is planned and the client is ready to subscribe"
-        // "Programujemy" odpowiedź naszego fałszywego (mockowego ) serwera.
-        // Mówimy mu: "Na następne żądanie, które otrzymasz, odpowiedz statusem 200 OK".
         webhookReceiverServer.enqueue(new MockResponse().setResponseCode(200).setBody("Notification received"))
 
-        // Przygotowanie danych w grundServer
         def testTask = new PhotoTask(taskId: 'T1', status: PhotoTaskStatus.PENDING)
         def missionManifest = new PhotoCollectionManifest(
                 missionId: 'M-123',
                 tasks: [testTask],
                 status: "UPLOADED"
         )
+        // ZMIANA: Używamy teraz pola z testu do wstawienia manifestu
+        missionManifests['M-123'] = missionManifest
 
-        // to oznacza: "Włam się do obiektu grundServer, znajdź jego wewnętrzną listę/mapę o nazwie missionManifests
-        // i ręcznie, na siłę, wstaw tam nasz przygotowany manifest pod kluczem 'M-123'."
-        // To jest operacja bezpośredniego ustawienia stanu wewnętrznego obiektu grundServer na potrzeby testu.
-        // ```missionManifest``` : To jest publiczne pole (lub pole dostępne w ramach pakietu) w klasie GroundControlServerApp.
-        // Jest to mapa, która przechowuje wszystkie aktywne manifesty misji, używając missionId jako klucza.
-        grundServer.missionManifests['M-123'] = missionManifest
-
-        // =======================================================
-        // === NOWA LOGIKA HATEOAS: Odkrywanie endpointu ===
-        // =======================================================
-
-        // 1. Klient pyta serwer o dostępne opcje, uderzając w główny endpoint
-        println "HATEOAS STEP 1: Discovering available actions from root..."
+        // === Logika HATEOAS ===
         def rootResponse = grundClient.getData("/")
-        rootResponse.statusCode == 200
-
-        // 2. Klient wyciąga z odpowiedzi link do tworzenia subskrypcji
         def subscriptionUrl = rootResponse.json._links.'create-subscription'.href
-        println "HATEOAS STEP 2: Discovered subscription URL: ${subscriptionUrl}"
-        subscriptionUrl != null
 
-        // 3. Klient tworzy żądanie subskrypcji
         def subRequest = new SubscriptionRequest(
                 missionId: 'M-123',
                 eventType: 'MISSION_COMPLETED',
                 callbackUrl: webhookReceiverServer.url("/webhook-endpoint").toString()
         )
-
-        // 4. Klient wysyła żądanie na ODKRYTY adres URL, a nie na zahardkodowany
-        println "HATEOAS STEP 3: Sending subscription request to discovered URL..."
         def subResponse = grundClient.sendGenericPost(subscriptionUrl, subRequest)
-        subResponse.statusCode == 201 // Upewnijmy się, że subskrypcja się powiodła
+        subResponse.statusCode == 201
 
         when: "the final data for the mission arrives at ground control"
-        // Dane testowe - bez zmian, ale upewnijmy się, że są kompletne
-        // To jest akcja właściwa testu (część when:).
-        // Wysyłamy tę paczkę ze zdjęciem na endpoint /data/ingest w grundServer.
         def finalPhotoData = [[
                                       missionId: 'M-123',
                                       photoId: 'T1',
@@ -106,8 +86,6 @@ class SubscriptionNotificationUsingHATEOSSpec extends Specification {
         grundClient.sendGenericPost("/data/ingest", finalPhotoData)
 
         then: "the webhook receiver gets a correct POST request"
-        // używamy wbudowanej metody MockWebServer,
-        // która czeka na żądanie (z timeoutem dla bezpieczeństwa).
         def receivedRequest = webhookReceiverServer.takeRequest(5, TimeUnit.SECONDS)
 
         and: "the received request has correct properties"

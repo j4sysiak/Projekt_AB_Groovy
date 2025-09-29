@@ -1,6 +1,7 @@
-// src/test/groovy/com/example/sat/hateoas/GrundMissionLifecycleSpec.groovy
 package com.example.sat.hateoas
 
+import com.example.sat.fakes.FakeRelationalDB
+import com.example.sat.fakes.HttpServerFactory
 import com.example.sat.fakes.SatelliteSimulator
 import com.example.sat.http.SimpleHttpClient
 import com.example.sat.server.GroundControlServerApp
@@ -13,24 +14,40 @@ class GrundMissionLifecycleSpec extends Specification {
     @Shared GroundControlServerApp grundServer
     @Shared SatelliteSimulatorServer satServer
     @Shared SimpleHttpClient grundClient
+    @Shared SatelliteSimulator simulator // Potrzebujemy dostępu do symulatora
 
     def setupSpec() {
-        // Uruchamiamy oba serwery, ponieważ GRUND będzie się komunikował z SAT
-        def simulator = new SatelliteSimulator()
-        satServer = new SatelliteSimulatorServer(simulator, "")
+        // === ZMIANA: Pełne wstrzykiwanie zależności ===
+
+        // 1. Stwórz testowe implementacje zależności
+        simulator = new SatelliteSimulator() // Używamy pola @Shared
+        def satHttp = HttpServerFactory.create()
+        def grundDb = new FakeRelationalDB()
+        def grundHttp = HttpServerFactory.create()
+
+        // 2. Stwórz i uruchom SatelliteSimulatorServer
+        satServer = new SatelliteSimulatorServer(simulator, satHttp)
         satServer.start(0)
         def satServerUrl = "http://localhost:${satServer.getPort()}"
 
-        grundServer = new GroundControlServerApp()
+        // 3. Stwórz i uruchom GroundControlServerApp
+        grundServer = new GroundControlServerApp(grundDb, grundHttp)
         grundServer.start(0, satServerUrl)
         def grundServerUrl = "http://localhost:${grundServer.getPort()}"
 
+        // 4. Stwórz klienta do komunikacji
         grundClient = new SimpleHttpClient(grundServerUrl)
     }
 
     def cleanupSpec() {
         grundServer?.stop()
         satServer?.stop()
+    }
+
+    // Dodajemy cleanup(), żeby resetować stan przed każdym testem
+    def cleanup() {
+        grundServer.resetState()
+        simulator.resetState()
     }
 
     def "should guide client through mission lifecycle from creation to upload"() {
