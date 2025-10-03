@@ -7,7 +7,7 @@ import java.lang.annotation.Retention
 import java.lang.annotation.RetentionPolicy
 import java.lang.annotation.Target
 
-@Retention(RetentionPolicy.SOURCE)
+@Retention(RetentionPolicy.CLASS)
 @Target(ElementType.TYPE)
-@GroovyASTTransformationClass("com.example.sat.test.dsl.RestDSLTransformation")
+@GroovyASTTransformationClass("com.example.sat.dsl.RestDSLTransformation")
 @interface RestDSL {}

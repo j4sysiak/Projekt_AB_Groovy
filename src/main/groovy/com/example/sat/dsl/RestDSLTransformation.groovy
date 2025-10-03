@@ -43,11 +43,7 @@ class RestDSLTransformation implements ASTTransformation {
         // Metoda będzie miała sygnaturę: Map get(String path, Closure configClosure)
 
         def pathParam = new Parameter(ClassHelper.STRING_TYPE, "path")
-
-        // Parametr `configClosure` jest najważniejszy. Dodajemy do niego adnotację
-        // @DelegatesTo(ServerConfig), aby IDE i kompilator wiedziały,
-        // co jest dozwolone wewnątrz tego bloku kodu w teście.
-        def configClosureParam = new Parameter(ClassHelper.CLOSURE_TYPE, "configClosure")
+        def configClosureParam = new Parameter(new ClassNode(Closure), "configClosure")
 
         def delegatesToAnnotation = new AnnotationNode(new ClassNode(DelegatesTo))
         delegatesToAnnotation.setMember("value", new ClassExpression(new ClassNode(ServerConfig)))
@@ -67,8 +63,8 @@ class RestDSLTransformation implements ASTTransformation {
                 // z następującymi argumentami:
                 new ArgumentListExpression(
                         new VariableExpression("configClosure"), // 1. przekazane closure
-                        new ConstantExpression(methodName),     // 2. nazwa metody jako string (np. "get")
-                        new VariableExpression("path")          // 3. przekazana ścieżka
+                        new ConstantExpression(methodName),              // 2. nazwa metody jako string (np. "get")
+                        new VariableExpression("path")           // 3. przekazana ścieżka
                 )
         )
 
@@ -78,7 +74,7 @@ class RestDSLTransformation implements ASTTransformation {
         def newMethod = new MethodNode(
                 methodName,                 // Nazwa metody, np. "get"
                 ACC_PUBLIC,                 // Modyfikator dostępu: public
-                ClassHelper.MAP_TYPE,       // Typ zwracany: Map
+                new ClassNode(Map),         // Typ zwracany: Map (poprawka dla Groovy 3+)
                 parameters,                 // Zdefiniowane parametry
                 ClassNode.EMPTY_ARRAY,      // Lista wyjątków (pusta)
                 methodBody                  // Zdefiniowane ciało metody

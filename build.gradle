@@ -19,7 +19,8 @@ java {
 dependencies {
     // --- Zależności Produkcyjne (`main`) ---
     implementation 'org.codehaus.groovy:groovy-all:3.0.18'
-    implementation 'org.codehaus.groovy:groovy-json:3.0.18'
+    // implementation 'org.codehaus.groovy:groovy-json:3.0.18'  groovy-all już zawiera w sobie groovy-json, więc ta linia jest zbędna
+    implementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.35.0'
 
     // --- Zależności Testowe (`test`) ---
     testImplementation 'org.spockframework:spock-core:2.3-groovy-3.0'
@@ -31,9 +32,6 @@ dependencies {
     testImplementation 'org.slf4j:slf4j-simple:1.7.32'
     testImplementation 'org.awaitility:awaitility-groovy:4.2.0'
     testImplementation 'com.squareup.okhttp3:mockwebserver:4.9.3'
-    // UWAGA: Zależność wiremock-jre8-standalone jest teraz w podprojekcie,
-    // ale ponieważ testy też mogą go potrzebować, zostawienie jej tutaj nie zaszkodzi.
-    testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.35.0'
 }
 
 test {
