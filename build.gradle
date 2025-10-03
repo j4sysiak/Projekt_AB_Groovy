@@ -18,15 +18,10 @@ java {
 
 dependencies {
     // --- Zależności Produkcyjne (`main`) ---
-    implementation 'org.codehaus.groovy:groovy:3.0.18'
+    implementation 'org.codehaus.groovy:groovy-all:3.0.18'
     implementation 'org.codehaus.groovy:groovy-json:3.0.18'
-    //Implementation 'com.sparkjava:spark-core:2.9.4'
 
-    // --- Zależności Testowe ---
-    // Główne testy zależą od naszego nowego podprojektu
-    testImplementation project(':rest-dsl')
-
-    // Testy potrzebują Spocka do działania
+    // --- Zależności Testowe (`test`) ---
     testImplementation 'org.spockframework:spock-core:2.3-groovy-3.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.3'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -44,4 +39,12 @@ dependencies {
 test {
     useJUnitPlatform()
     testLogging.showStandardStreams = true
+}
+
+// === OSTATECZNE ROZWIĄZANIE PROBLEMU Z DUPLIKATEM PLIKU AST ===
+// Ta konfiguracja mówi Gradle, jak ma przetwarzać zasoby testowe.
+processTestResources {
+    // W przypadku duplikatów w META-INF/services, nie rzucaj błędem,
+    // po prostu dołącz oba pliki. To jest kluczowe dla Spocka i naszego DSL-a.
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }

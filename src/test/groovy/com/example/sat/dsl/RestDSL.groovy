@@ -1,4 +1,4 @@
-package com.example.sat.test.dsl
+package com.example.sat.dsl
 
 import org.codehaus.groovy.transform.GroovyASTTransformationClass
 

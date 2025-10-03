@@ -21,8 +21,11 @@ java {
 dependencies {
     // --- Zależności Potrzebne do Skompilowania Kodu DSL ---
 
-    // 1. Rdzeń Groovy do działania samej transformacji AST
+    // 1. Podstawowy Groovy jest wciąż potrzebny
     implementation 'org.codehaus.groovy:groovy:3.0.18'
+
+    // 2. POPRAWKA: Jawnie prosimy o moduł z makrami i transformacjami AST
+    implementation 'org.codehaus.groovy:groovy-templates:3.0.18'
 
     // 2. Potrzebujemy API Spocka, bo nasza transformacja wstrzykuje metody
     //    do klas, które dziedziczą po spock.lang.Specification.
