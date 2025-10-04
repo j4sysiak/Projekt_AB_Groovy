@@ -1,13 +1,13 @@
-package com.example.sat.dsl
+package com.example.sat.dsl1
 
 import com.example.sat.http.SimpleHttpClient
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock
 
-class RestTestExecutor {
+class RestTestExecutor1 {
     static Map execute(Closure serverConfigClosure, String method, String path) {
 
-        def config = new ServerConfig()
+        def config = new ServerConfig1()
         serverConfigClosure.delegate = config
         serverConfigClosure.call()  // <-- Tutaj pola `host` i `defaultRespondMediaType` są ustawiane w obiekcie `config`
 

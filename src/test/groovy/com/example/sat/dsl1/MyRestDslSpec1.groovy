@@ -1,10 +1,10 @@
-package com.example.sat.dsl
+package com.example.sat.dsl1
 
 
 import spock.lang.Specification
 
-@RestDSL
-class MyRestDslSpec extends Specification {
+@RestDSL1
+class MyRestDslSpec1 extends Specification {
 
     def "should execute a GET request using the injected DSL method"() {
         when: "a GET request is defined and executed in a single block"

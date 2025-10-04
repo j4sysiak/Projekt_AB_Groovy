@@ -1,4 +1,4 @@
-package com.example.sat.dsl
+package com.example.sat.dsl1
 
 import groovy.transform.Canonical
 
@@ -7,7 +7,7 @@ import groovy.transform.Canonical
  * zdefiniowanej w bloku closure w teście.
  */
 @Canonical
-class ServerConfig {
+class ServerConfig1 {
     String host
     String defaultRequestMediaType
     String defaultRespondMediaType
