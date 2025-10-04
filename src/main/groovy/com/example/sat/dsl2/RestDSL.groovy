@@ -1,4 +1,4 @@
-package com.example.sat.dsl
+package com.example.sat.dsl2
 
 import org.codehaus.groovy.transform.GroovyASTTransformationClass
 
@@ -9,5 +9,5 @@ import java.lang.annotation.Target
 
 @Retention(RetentionPolicy.CLASS)
 @Target(ElementType.TYPE)
-@GroovyASTTransformationClass("com.example.sat.dsl.RestDSLTransformation")
+@GroovyASTTransformationClass("com.example.sat.dsl2.RestDSLTransformation")
 @interface RestDSL {}
