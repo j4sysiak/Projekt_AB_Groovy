@@ -1,6 +1,6 @@
 package com.example.sat.services
 
-import com.example.sat.db.ISubscriptionRepository // <-- Zależność od interfejsu
+import com.example.sat.db.ISubscriptionRepository // <-- Zależność od
 import com.example.sat.dto.NotificationPayload
 import com.example.sat.http.INotificationClient   // <-- Zależność od interfejsu
 
@@ -20,7 +20,9 @@ class NotificationService {
      */
     void publishEvent(String eventType, String missionId, Map<String, Object> eventData) {
         println "NOTIFICATION_SERVICE: Received event '${eventType}' for mission '${missionId}'."
-        def subscriptions = repository.findByEventTypeAndMissionId(eventType, missionId)
+
+           def subscriptions = repository.findSubscriptionsByEvent(eventType, missionId)
+
         if (subscriptions.isEmpty()) {
             println "NOTIFICATION_SERVICE: No subscribers found for this event."
             return

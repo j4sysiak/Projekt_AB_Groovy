@@ -1,13 +1,16 @@
 package com.example.sat.fakes
 
-import com.example.sat.CommandModule
-import com.example.sat.SatelliteConnection
 import com.example.sat.dto.PhotoCollectionManifest
 import com.example.sat.dto.PhotoData
 import com.example.sat.dto.PhotoTaskStatus
+import com.example.sat.simulation.ISatelliteSimulator
+import groovy.transform.Synchronized
 
-// Ten symulator udaje zarówno moduł komend, jak i połączenie z satelitą.
-class SatelliteSimulator implements SatelliteConnection, CommandModule {
+// Importujemy TYLKO jeden, nadrzędny interfejs
+
+
+// ZMIANA: Implementujemy tylko ISatelliteSimulator
+class SatelliteSimulator implements ISatelliteSimulator {
 
     // === STAN WEWNĘTRZNY ===
     double batteryLevel = 95.0
@@ -23,7 +26,8 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
     Map<String, PhotoData> photoStorage = [:]
     final int downlinkBatchSize = 40
 
-
+    @Synchronized
+    @Override
     void storeMissionPlan(PhotoCollectionManifest manifest) {
         println "SIMULATOR: Storing photo collection manifest ${manifest.missionId}..."
 
@@ -35,6 +39,7 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
     }
 
     // Ta metoda TYLKO robi zdjęcia na podstawie zapisanego planu.
+    @Synchronized
     void simulatePhotoTakingProcess() {
         if (!activeManifest) {
             println "SIMULATOR: No active manifest. Photo taking process skipped."
@@ -71,34 +76,83 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
             }
         println "PHOTO STORAGE after shooting: ${photoStorage.size()} photos stored."
         println "SIMULATOR: Photo taking process finished."
+        println "DEBUG PHOTO PROCESS: Status pierwszego zadania: ${activeManifest?.tasks?.first()?.status}"
         }
+/*
+    @Synchronized
+    @Override
+    List<PhotoData> downlinkQueuedPhotos() {
+        // Twoje logi debugowania tutaj...
+        if (!activeManifest) { return [] }
+
+        // Krok 1: Znajdź wszystkie zadania, które czekają w kolejce do wysłania.
+        def allQueuedTasks = activeManifest.tasks.findAll {
+            it.status == com.example.sat.dto.PhotoTaskStatus.TAKEN_AND_QUEUED
+        }
+
+        if (allQueuedTasks.isEmpty()) {
+            return []
+        }
+
+        // Krok 2: Z tej kolejki, weź tylko jedną paczkę o rozmiarze `downlinkBatchSize`.
+        def tasksForThisBatch = allQueuedTasks.take(downlinkBatchSize)
+
+        // Krok 3: Dla tej paczki, zbierz odpowiadające im obiekty zdjęć.
+        def photosToSend = tasksForThisBatch.collect { task ->
+            photoStorage.get(task.taskId)
+        }.findAll { it != null }
+
+        // Krok 4: Zmień status TYLKO TYCH ZADAŃ, które są w tej paczce.
+        tasksForThisBatch.each { task ->
+            task.status = com.example.sat.dto.PhotoTaskStatus.DOWNLINKED
+        }
+
+        // Krok 5: Zwróć paczkę zdjęć.
+        return photosToSend
+    }*/
+
 
 
     // Metoda do wysyłania danych w paczkach
     // Downlink zdjęć z SAT (SateliteSimulatorSever) do SERW1 (IntermediateSerwerApp)
+    @Synchronized
+    @Override
     List<PhotoData> downlinkQueuedPhotos() {
         println "SIMULATOR: Checking for photos to downlink..."
-
+        println "==== DEBUG START: downlinkQueuedPhotos ===="
         if (!activeManifest) {
             println "SIMULATOR: No active manifest. Nothing to downlink."
+            println "DEBUG: No active manifest. Zwracam []."
+            println "==== DEBUG END ===="
             return [] // Zwróć pustą listę
         }
+        println "DEBUG: Active manifest ID: ${activeManifest.missionId}"
+        println "DEBUG: Liczba zadań w manifeście: ${activeManifest.tasks.size()}"
+
+        // Zobaczmy statusy WSZYSTKICH zadań
+        activeManifest.tasks.eachWithIndex { task, i ->
+            println "DEBUG: Zadanie #${i}, ID=${task.taskId}, Status=${task.status}"
+        }
+
 
         // 1. Znajdź zadania, które są gotowe do wysłania
-        def queuedTasks = activeManifest.tasks
-                .findAll { it.status == PhotoTaskStatus.TAKEN_AND_QUEUED }
+        def allQueuedTasks = activeManifest.tasks.findAll { // <-- TUTAJ TWORZYSZ LOKALNĄ ZMIENNĄ
+            it.status == PhotoTaskStatus.TAKEN_AND_QUEUED
+        }
 
-        if (queuedTasks.isEmpty()) {
+        if (allQueuedTasks.isEmpty()) {
             println "SIMULATOR: No tasks queued for downlink."
+            println "DEBUG: Brak zadań do wysłania. Zwracam []."
+            println "==== DEBUG END ===="
             return [] // Zwróć pustą listę
         }
 
         // 2. Wybierz paczkę do wysłania, nie większą niż downlinkBatchSize
-        def tasksToDownlink = queuedTasks.take(downlinkBatchSize)
-        println "SIMULATOR: Downlinking a batch of ${tasksToDownlink.size()}  tasks to downlink."
+        def tasksForThisDownlink = allQueuedTasks.take(downlinkBatchSize)
+        println "SIMULATOR: Downlinking a batch of ${tasksForThisDownlink.size()}  tasks to downlink."
 
         // 3. Pobierz odpowiadające im zdjęcia i wzbogać je o missionId
-        def photosToSend = tasksToDownlink.collect { task ->
+        def photosToSend = tasksForThisDownlink.collect { task ->
             def photo = photoStorage.get(task.taskId)
             if (photo) {
                 // WZBOGACAMY DANE ZDJĘCIA O ID MISJI
@@ -108,14 +162,18 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
         }.findAll { it != null } // Usuwamy ewentualne nulle, jeśli zdjęcia nie znaleziono
 
 
-        // 4. Zmień status wysłanych zadań na DOWNLINKING */
-        tasksToDownlink.each { it.status = PhotoTaskStatus.DOWNLINKED }
+        // 4. Zmień status wysłanych zadań na DOWNLINKING
+        tasksForThisDownlink.each { task ->
+            task.status = PhotoTaskStatus.DOWNLINKED
+        }
 
         // 5. Zwróć przygotowaną listę zdjęć
         println "SIMULATOR: Returning a batch of ${photosToSend.size()} photos to be sent."
+        println "==== DEBUG END ===="
         return photosToSend // <-- TEN RETURN JEST KLUCZOWY
     }
 
+    @Synchronized
     @Override
     String sendCommand(String command, Map params = [:]) {
         if (!connected) throw new IllegalStateException("SIMULATOR: Not connected.")
@@ -142,6 +200,7 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
         }
     }
 
+    @Synchronized
     @Override
     void connect(String authToken) {
         if (!powerOn) throw new IllegalStateException("SIMULATOR: Cannot connect, power is off.")
@@ -149,17 +208,20 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
         println "SIMULATOR: Connection established."
     }
 
+    @Synchronized
     @Override
     void disconnect() {
         this.connected = false
         println "SIMULATOR: Disconnecting."
     }
 
+    @Synchronized
     @Override
     boolean isConnected() { return connected }
 
     // === Implementacja interfejsu SatelliteConnection ===
     // === Zmodyfikowane metody, które zależą od nowego stanu ===
+    @Synchronized
     @Override
     String fetchData(String satelliteId) {
         if (!connected) throw new IllegalStateException("SIMULATOR: Not connected.")
@@ -172,6 +234,7 @@ class SatelliteSimulator implements SatelliteConnection, CommandModule {
         return "<SimulatedImageData>${satelliteId}-${System.currentTimeMillis()}</SimulatedImageData>"
     }
 
+    @Synchronized
     void resetState() {
         this.batteryLevel = 95.0
         this.cameraMode = "STANDBY"

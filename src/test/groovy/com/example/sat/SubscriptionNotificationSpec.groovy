@@ -1,98 +1,92 @@
 package com.example.sat
 
+import com.example.sat.db.RelationalDB
 import com.example.sat.dto.PhotoCollectionManifest
 import com.example.sat.dto.PhotoTask
 import com.example.sat.dto.PhotoTaskStatus
 import com.example.sat.dto.SubscriptionRequest
+import com.example.sat.fakes.FakeRelationalDB
+import com.example.sat.fakes.HttpServerFactory
 import com.example.sat.http.SimpleHttpClient
 import com.example.sat.server.GroundControlServerApp
+import com.example.sat.server.IHttpServer
 import groovy.json.JsonSlurper
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
-import spock.lang.Shared
 import spock.lang.Specification
+
 import java.util.concurrent.TimeUnit
 
 class SubscriptionNotificationSpec extends Specification {
 
-    @Shared GroundControlServerApp grundServer
-    @Shared SimpleHttpClient grundClient
+    // ZMIANA: Usunięto @Shared. Pola będą inicjalizowane w setup()
+    GroundControlServerApp grundServer
+    SimpleHttpClient grundClient
+    MockWebServer webhookReceiverServer
+    Map<String, PhotoCollectionManifest> missionManifests
 
-    // ZMIANA: Zamiast drugiej instancji naszej aplikacji, używamy dedykowanego MockWebServer
-    @Shared MockWebServer webhookReceiverServer
+    def setup() {
+        def fakeDbImpl = new FakeRelationalDB()
+        def fakeHttpImpl = HttpServerFactory.create()
+        missionManifests = [:]
 
+        // === OSTATECZNA POPRAWKA: Rzutowanie na interfejsy ===
+        RelationalDB dbInterface = fakeDbImpl
+        IHttpServer httpInterface = fakeHttpImpl
 
-    def setupSpec() {
-        // 1. Uruchom serwer GRUND
-        grundServer = new GroundControlServerApp()
-        grundServer.start(0, "") // Nie potrzebuje satelity
-        grundClient = new SimpleHttpClient("http://localhost:${grundServer.getPort()}")
+        grundServer = new GroundControlServerApp(dbInterface, httpInterface, missionManifests)
+        // =======================================================
 
-        // 2. Stwórz i uruchom MockWebServer
+        grundServer.start(0, "")
+        def grundServerUrl = "http://localhost:${grundServer.getPort()}"
+        grundClient = new SimpleHttpClient(grundServerUrl)
+
         webhookReceiverServer = new MockWebServer()
-        webhookReceiverServer.start() // Uruchomi się na losowym, wolnym porcie
+        webhookReceiverServer.start()
     }
 
-    def cleanupSpec() {
+    // ZMIANA: Logika przeniesiona z cleanupSpec() do cleanup()
+    def cleanup() {
         grundServer?.stop()
-        // ZMIANA: Zamykamy MockWebServer za pomocą jego metody shutdown()
         webhookReceiverServer?.shutdown()
     }
 
-    def cleanup() {
-        grundServer.resetState()
-        // Nie musimy już czyścić listy, bo MockWebServer sam zarządza stanem
-    }
 
     def "should receive a notification when a subscribed mission is completed"() {
         given: "a mission is planned and a subscription is created"
-        // "Programujemy" odpowiedź naszego fałszywego (mockowego ) serwera.
-        // Mówimy mu: "Na następne żądanie, które otrzymasz, odpowiedz statusem 200 OK".
         webhookReceiverServer.enqueue(new MockResponse().setResponseCode(200).setBody("Notification received"))
 
-        // Przygotowanie danych w grundServer - bez zmian
         def testTask = new PhotoTask(taskId: 'T1', status: PhotoTaskStatus.PENDING)
         def missionManifest = new PhotoCollectionManifest(
                 missionId: 'M-123',
                 tasks: [testTask],
                 status: "UPLOADED"
         )
-        // to oznacza: "Włam się do obiektu grundServer, znajdź jego wewnętrzną listę/mapę o nazwie missionManifests
-        // i ręcznie, na siłę, wstaw tam nasz przygotowany manifest pod kluczem 'M-123'."
-        //To jest operacja bezpośredniego ustawienia stanu wewnętrznego obiektu grundServer na potrzeby testu.
-        // .missionManifests: To jest publiczne pole (lub pole dostępne w ramach pakietu) w klasie GroundControlServerApp.
-        // Jest to mapa, która przechowuje wszystkie aktywne manifesty misji, używając missionId jako klucza.
-        grundServer.missionManifests['M-123'] = missionManifest
+        missionManifests['M-123'] = missionManifest
 
-        // Tworzymy subskrypcję, podając adres URL naszego MockWebServer
         def subRequest = new SubscriptionRequest(
                 missionId: 'M-123',
                 eventType: 'MISSION_COMPLETED',
-                // ZMIANA: Używamy metody .url(), aby uzyskać pełny adres MockWebServer
                 callbackUrl: webhookReceiverServer.url("/webhook-endpoint").toString()
         )
-        grundClient.sendGenericPost("/subscriptions", subRequest)
+        def subResponse = grundClient.sendGenericPost("/subscriptions", subRequest)
+        subResponse.statusCode == 201
 
         when: "the final data for the mission arrives at ground control"
-        // Dane testowe - bez zmian, ale upewnijmy się, że są kompletne
-        // To jest akcja właściwa testu (część when:).
-        // Wysyłamy tę paczkę ze zdjęciem na endpoint /data/ingest w grundServer.
         def finalPhotoData = [[
                                       missionId: 'M-123',
                                       photoId: 'T1',
                                       content: 'Test content',
                                       timestamp: System.currentTimeMillis(),
-                                      quality: 99  // "HIGH"
+                                      quality: 99
                               ]]
         grundClient.sendGenericPost("/data/ingest", finalPhotoData)
 
         then: "the webhook receiver gets a correct POST request"
-        // używamy wbudowanej metody MockWebServer,
-        // która czeka na żądanie (z timeoutem dla bezpieczeństwa).
         def receivedRequest = webhookReceiverServer.takeRequest(5, TimeUnit.SECONDS)
 
         and: "the received request has correct properties"
-        receivedRequest != null // Upewniamy się, że żądanie w ogóle dotarło
+        receivedRequest != null
         receivedRequest.method == "POST"
         receivedRequest.path == "/webhook-endpoint"
 

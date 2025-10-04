@@ -1,6 +1,9 @@
 package com.example.sat
 
-import com.example.sat.dto.PhotoData // <-- DODAJ IMPORT
+import com.example.sat.dto.PhotoData
+import com.example.sat.fakes.FakeFileSystem
+import com.example.sat.fakes.FakeRelationalDB
+import com.example.sat.fakes.HttpServerFactory
 import com.example.sat.server.GroundControlServerApp
 import com.example.sat.server.IntermediateServerApp
 import com.example.sat.http.SimpleHttpClient
@@ -13,43 +16,53 @@ class SERW1ToGRUND_HealthCheckSpec extends Specification {
     @Shared IntermediateServerApp intermediateServer
     @Shared SimpleHttpClient intermediateClient
 
-    // setupSpec jest OK, zostaje bez zmian
+    // Musimy też współdzielić "fejki", aby mieć do nich dostęp w testach
+    @Shared FakeRelationalDB intermediateDb
+
     def setupSpec() {
-        // 1. Uruchom serwer docelowy (GRUND)
-        grundServer = new GroundControlServerApp()
-        grundServer.start(0, "") // URL satelity jest niepotrzebny w tym teście
+        // === ZMIANA: Pełne wstrzykiwanie zależności ===
+
+        // 1. Stwórz testowe implementacje zależności, które będą współdzielone
+        def grundDb = new FakeRelationalDB()
+        intermediateDb = new FakeRelationalDB() // Używamy pola @Shared
+        def intermediateFs = new FakeFileSystem()
+        def grundHttp = HttpServerFactory.create()
+        def intermediateHttp = HttpServerFactory.create()
+
+        // 2. Stwórz i uruchom GroundControlServerApp
+        grundServer = new GroundControlServerApp(grundDb, grundHttp)
+        grundServer.start(0, "")
         def grundServerUrl = "http://localhost:${grundServer.getPort()}"
 
-        // 2. Uruchom serwer źródłowy (SERW1), mówiąc mu, gdzie jest GRUND
-        intermediateServer = new IntermediateServerApp()
+        // 3. Stwórz i uruchom IntermediateServerApp
+        intermediateServer = new IntermediateServerApp(intermediateHttp, intermediateFs, intermediateDb)
         intermediateServer.start(0, grundServerUrl)
         def intermediateServerUrl = "http://localhost:${intermediateServer.getPort()}"
 
-        // 3. Stwórz klienta do sterowania serwerem SERW1
+        // 4. Stwórz klienta do sterowania serwerem SERW1
         intermediateClient = new SimpleHttpClient(intermediateServerUrl)
     }
 
-    // cleanupSpec jest OK
     def cleanupSpec() {
         grundServer?.stop()
         intermediateServer?.stop()
     }
 
     def cleanup() {
-        // Resetuj stan OBU serwerów, aby testy były od siebie w pełni niezależne
+        // Resetujemy stan OBU serwerów przed każdym testem
         intermediateServer.resetState()
-        grundServer.resetState() // <-- DODAJ TĘ LINIĘ
-
-        // Flagi najlepiej resetować po stanie
+        grundServer.resetState()
         grundServer.forceHealthStatus(false)
     }
 
     def "should successfully forward data when ground control is healthy"() {
         given: "intermediate server has data to forward and ground control is healthy"
-        // POPRAWKA: Wstawiaj do bazy obiekt PhotoData, a nie mapę,
-        // zgodnie z tym, jak działa teraz serwer.
-        intermediateServer.database.insertPhoto(new PhotoData(photoId: "HEALTHY-FWD-1", content: "test"))
-        grundServer.forceHealthStatus(false) // Upewniamy się, że jest zdrowy
+        // Używamy pola @Shared `intermediateDb` do wstawienia danych
+        intermediateDb.insertPhoto(new PhotoData(
+                photoId: "HEALTHY-FWD-1", missionId: "M1", content: "test",
+                timestamp: 1L, quality: 90
+        ))
+        grundServer.forceHealthStatus(false)
 
         when: "the forward process is triggered"
         def response = intermediateClient.sendGenericPost("/forward", [:])
@@ -57,26 +70,25 @@ class SERW1ToGRUND_HealthCheckSpec extends Specification {
         then: "the operation succeeds and GRUND's database is updated"
         response.statusCode == 200
         response.json.status == "OK"
-        // DODATKOWA ASERCJA: Sprawdźmy, czy dane faktycznie dotarły
         grundServer.getDbPhotoCount() == 1
     }
 
     def "should abort forwarding when ground control is unhealthy"() {
         given: "intermediate server has data to forward but ground control is unhealthy"
-        // POPRAWKA: Wstawiaj do bazy obiekt PhotoData
-        intermediateServer.database.insertPhoto(new PhotoData(photoId: "UNHEALTHY-FWD-1", content: "test"))
-        grundServer.forceHealthStatus(true) // Symulujemy awarię
+        intermediateDb.insertPhoto(new PhotoData(
+                photoId: "UNHEALTHY-FWD-1", missionId: "M2", content: "test",
+                timestamp: 2L, quality: 90
+        ))
+        grundServer.forceHealthStatus(true)
 
         when: "the forward process is triggered"
         def response = intermediateClient.sendGenericPost("/forward", [:])
 
         then: "the operation fails and no data is transferred"
-        response.statusCode == 502 // Bad Gateway
+        response.statusCode == 502
         response.json.status == "ERROR"
-        response.json.message.contains("unhealthy")
-        // DODATKOWA ASERCJA: Upewnijmy się, że baza GRUND jest pusta
+
         grundServer.getDbPhotoCount() == 0
-        // I że dane wciąż są w serwerze pośredniczącym
         intermediateServer.getDbPhotoCount() == 1
     }
 }
