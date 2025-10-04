@@ -1,9 +1,7 @@
-package com.example.sat.dsl2
+package com.example.sat.dsl
 
 import org.codehaus.groovy.ast.*
 import org.codehaus.groovy.ast.expr.*
-import org.codehaus.groovy.ast.stmt.BlockStatement
-import org.codehaus.groovy.ast.stmt.ExpressionStatement
 import org.codehaus.groovy.ast.stmt.ReturnStatement
 import org.codehaus.groovy.control.CompilePhase
 import org.codehaus.groovy.control.SourceUnit
@@ -48,53 +46,29 @@ class RestDSLTransformation implements ASTTransformation {
         def configClosureParam = new Parameter(new ClassNode(Closure), "configClosure")
 
         def delegatesToAnnotation = new AnnotationNode(new ClassNode(DelegatesTo))
-        // ZMIANA: Teraz delegujemy do głównej klasy ServerConfig
         delegatesToAnnotation.setMember("value", new ClassExpression(new ClassNode(ServerConfig)))
         configClosureParam.addAnnotation(delegatesToAnnotation)
 
         def parameters = [pathParam, configClosureParam] as Parameter[]
 
         // --- 2. Definiujemy ciało wstrzykiwanej metody ---
-        // Tworzymy ServerConfig, wywołujemy closure z parametrem, przekazujemy config do RestTestExecutor
-        def configVar = new VariableExpression("config")
-        def configInit = new DeclarationExpression(
-            configVar,
-            Token.newSymbol("=", -1, -1),
-            new ConstructorCallExpression(new ClassNode(ServerConfig), ArgumentListExpression.EMPTY_ARGUMENTS)
-        )
-        def printAst = new ExpressionStatement(
-            new MethodCallExpression(
-                new VariableExpression("this"),
-                "println",
-                new ConstantExpression("AST: przekazuję do closure: ")
-            )
-        )
-        def printConfig = new ExpressionStatement(
-            new MethodCallExpression(
-                new VariableExpression("this"),
-                "println",
-                configVar
-            )
-        )
-        def callClosure = new ExpressionStatement(
-            new MethodCallExpression(
-                new VariableExpression("configClosure"),
-                "call",
-                new ArgumentListExpression(configVar)
-            )
-        )
+        // Ciało będzie wywoływać naszą logikę wykonawczą:
+        // return RestTestExecutor.execute(configClosure, "get", path)
+
         def methodCall = new MethodCallExpression(
-            new ClassExpression(new ClassNode(RestTestExecutor)),
-            "executeWithConfig",
-            new ArgumentListExpression(configVar, new ConstantExpression(methodName), new VariableExpression("path"))
+                // Wywołaj metodę statyczną na klasie RestTestExecutor
+                new ClassExpression(new ClassNode(RestTestExecutor)),
+                // o nazwie "execute"
+                "execute",
+                // z następującymi argumentami:
+                new ArgumentListExpression(
+                        new VariableExpression("configClosure"), // 1. przekazane closure
+                        new ConstantExpression(methodName),              // 2. nazwa metody jako string (np. "get")
+                        new VariableExpression("path")           // 3. przekazana ścieżka
+                )
         )
-        def methodBody = new BlockStatement([
-            new ExpressionStatement(configInit),
-            printAst,
-            printConfig,
-            callClosure,
-            new ReturnStatement(methodCall)
-        ], new VariableScope())
+
+        def methodBody = new ReturnStatement(methodCall)
 
         // --- 3. Składamy wszystko w jedną całość ---
         def newMethod = new MethodNode(

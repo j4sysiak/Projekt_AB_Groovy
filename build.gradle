@@ -17,6 +17,7 @@ java {
 }
 
 dependencies {
+    implementation 'org.codehaus.groovy:groovy:3.0.21'
     // --- Zależności Produkcyjne (`main`) ---
     implementation 'org.codehaus.groovy:groovy-all:3.0.18'
     // implementation 'org.codehaus.groovy:groovy-json:3.0.18'  groovy-all już zawiera w sobie groovy-json, więc ta linia jest zbędna
@@ -26,6 +27,7 @@ dependencies {
     testImplementation 'org.spockframework:spock-core:2.3-groovy-3.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.3'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'com.github.tomakehurst:wiremock-jre8:2.35.0'
 
     // I potrzebują wszystkich narzędzi do testów integracyjnych
     testImplementation 'com.sparkjava:spark-core:2.9.4'

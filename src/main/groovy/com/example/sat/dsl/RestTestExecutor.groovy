@@ -1,11 +1,16 @@
-package com.example.sat.dsl2
+package com.example.sat.dsl
 
 import com.example.sat.http.SimpleHttpClient
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock
 
 class RestTestExecutor {
-    static Map executeWithConfig(ServerConfig config, String method, String path) {
+    static Map execute(Closure serverConfigClosure, String method, String path) {
+
+        def config = new ServerConfig()
+        serverConfigClosure.delegate = config
+        serverConfigClosure.call()  // <-- Tutaj pola `host` i `defaultRespondMediaType` są ustawiane w obiekcie `config`
+
         // Uruchamiamy NOWY, PUSTY serwer WireMock w locie
         def wireMockServer = new WireMockServer()
         wireMockServer.start() // <-- Startuje na LOSOWYM, wolnym porcie
@@ -17,16 +22,16 @@ class RestTestExecutor {
             wireMockServer.stubFor(
                     WireMock.request(method.toUpperCase(), WireMock.urlEqualTo(path))
                             .willReturn(WireMock.aResponse()
-                                    .withStatus(config.response.status)
-                                    .withHeader("Content-Type", config.response.mediaType)
-                                    .withBody(config.response.body)
+                                    .withStatus(200)
+                                    .withHeader("Content-Type", config.defaultRespondMediaType)
+                                    .withBody('{"status":"OK_FROM_DSL"}')
                             )
             )
 
             if (method.toUpperCase() == "GET") {
                 return client.getData(path)
             } else {
-                return client.sendGenericPost(path, config.request?.body ?: [:])
+                return client.sendGenericPost(path, [:])
             }
         } finally {
             wireMockServer.stop()
